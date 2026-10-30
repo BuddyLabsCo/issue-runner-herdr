@@ -32,6 +32,33 @@ Creation does not launch an Agent or prove shell readiness. Submission success
 reports backend acknowledgement, not Agent acceptance. Closing does not prove
 process or descendant exit.
 
+## Working context
+
+Creation captures `cwd`, `label`, and the explicit environment entries before
+checking the directory asynchronously. Changing the caller's options afterward
+does not change that request. Paths, labels, and environment values travel as
+UTF-8 JSON data, without shell quoting or expansion. Spaces, Unicode, quotes,
+and literal shell characters are preserved; empty environment values override
+inherited values rather than deleting their keys. Unspecified variables retain
+the values captured when the plugin was initialized.
+
+`cwd` must name an existing directory accessible to Runner on the same host as
+Herdr. Use an absolute POSIX path on Linux/macOS, or a fully qualified drive or
+UNC path on Windows; forward slashes and extended-length Windows paths are
+preserved. Drive-relative paths such as `C:work`, current-drive roots such as
+`\work`, and shell expressions such as `~/work` must be resolved by the caller.
+Local directory validation is a preflight check; backend failures applying the
+directory or environment still reject creation.
+
+Labels and environment strings cannot contain NUL. Environment keys must be
+nonempty and cannot contain `=` or NUL. Explicit overrides of `HERDR_ENV`,
+`HERDR_SOCKET_PATH`, `HERDR_WORKSPACE_ID`, `HERDR_TAB_ID`, `HERDR_PANE_ID`, or
+`HERDR_BIN_PATH` reject, including case variants; Herdr supplies routing context
+for the new pane. Other environment names follow the platform's casing rules.
+A partial or inconsistent creation reply cannot establish an owned handle and
+invalidates the plugin. A rejected creation may leave a native tab behind;
+the plugin does not guess its identity or retry the request.
+
 ## Inherited host context
 
 Launch Runner inside an existing Herdr 0.9.5 pane. The factory requires inherited
