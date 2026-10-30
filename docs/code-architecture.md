@@ -24,3 +24,4 @@ public module -> plugin/ -> herdr/ -> Herdr server
 - Keep handles and target associations inside each plugin instance; keep transport and test seams private.
 - Core owns workflow, Agent configuration, retries and recovery; this repository owns terminal operations.
 - Keep helpers beside their owner. Add directories when needed, not as empty scaffolding.
+- Run `npm run check` for formatting, lint and types; `npm test` checks the quality rules.
