@@ -238,12 +238,17 @@ export async function initialize() {
           cwd: options.cwd,
           label: options.label,
           env: Object.fromEntries(
-            [...Object.entries(inherited), ...Object.entries(options.env)].map(
-              ([key, value]) => [
-                process.platform === "win32" ? key.toUpperCase() : key,
-                value,
-              ],
-            ),
+            new Map(
+              [
+                ...Object.entries(inherited),
+                ...Object.entries(options.env),
+              ].map((entry) => [
+                process.platform === "win32"
+                  ? entry[0].toUpperCase()
+                  : entry[0],
+                entry,
+              ]),
+            ).values(),
           ),
           focus: false,
         },

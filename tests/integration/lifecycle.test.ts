@@ -46,9 +46,10 @@ await test("initializes from the caller and creates one owned interactive tab", 
   assert.equal(request.params.command, undefined);
 });
 
-for (const { overlay, caseSensitiveEntries } of [
+for (const { overlay, windowsEntries, caseSensitiveEntries } of [
   {
     overlay: { REVIEWOVERLAY: "requested" },
+    windowsEntries: [["REVIEWOVERLAY", "requested"]],
     caseSensitiveEntries: [
       ["ReviewOverlay", "inherited"],
       ["REVIEWOVERLAY", "requested"],
@@ -56,6 +57,7 @@ for (const { overlay, caseSensitiveEntries } of [
   },
   {
     overlay: { REVIEWOVERLAY: "earlier", ReviewOverlay: "requested" },
+    windowsEntries: [["ReviewOverlay", "requested"]],
     caseSensitiveEntries: [
       ["ReviewOverlay", "requested"],
       ["REVIEWOVERLAY", "earlier"],
@@ -78,19 +80,40 @@ for (const { overlay, caseSensitiveEntries } of [
       ([key]) => key.toUpperCase() === "REVIEWOVERLAY",
     );
     assert.deepEqual(
-      entries.map(([key, value]) => [
-        process.platform === "win32" ? key.toUpperCase() : key,
-        value,
-      ]),
-      process.platform === "win32"
-        ? [["REVIEWOVERLAY", "requested"]]
-        : caseSensitiveEntries,
+      entries,
+      process.platform === "win32" ? windowsEntries : caseSensitiveEntries,
     );
-    assert.equal(
-      Object.entries(env).find(
-        ([key]) => key.toUpperCase() === "REVIEWINHERITEDONLY",
-      )?.[1],
-      "retained",
+    assert.equal(env.ReviewInheritedOnly, "retained");
+  });
+}
+
+for (const explicit of [false, true]) {
+  await test(`retains lowercase fish environment spelling (explicit: ${String(explicit)})`, async (t) => {
+    const server = await herdr([...contextSteps(), createStep()]);
+    t.after(() => server.close());
+    delete process.env.FISH_HANDLE_REFLOW;
+    delete process.env.fish_handle_reflow;
+    process.env[explicit ? "FISH_HANDLE_REFLOW" : "fish_handle_reflow"] =
+      "inherited";
+    const plugin = await contract.createTerminalPlugin();
+    await plugin.createTab({
+      cwd: process.cwd(),
+      env: explicit ? { fish_handle_reflow: "0" } : {},
+      label: "Fish environment",
+    });
+    const env = server.requests[2]?.params.env as Record<string, string>;
+    assert.deepEqual(
+      Object.entries(env).filter(
+        ([key]) => key.toLowerCase() === "fish_handle_reflow",
+      ),
+      explicit
+        ? process.platform === "win32"
+          ? [["fish_handle_reflow", "0"]]
+          : [
+              ["FISH_HANDLE_REFLOW", "inherited"],
+              ["fish_handle_reflow", "0"],
+            ]
+        : [["fish_handle_reflow", "inherited"]],
     );
   });
 }
