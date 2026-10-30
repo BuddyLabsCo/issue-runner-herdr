@@ -34,6 +34,15 @@ It owns bracketed-paste encoding according to the target terminal's mode. The
 plugin therefore sends generic `pane.send_input` rather than raw `pane.send_text`,
 Agent-specific APIs, separate line submissions, or rewritten newline characters.
 
+The optional public `submitKey` string names one chord, mapped case-insensitively
+to `enter` (the default) or `shift+enter`. Other chords, whitespace, key scripts,
+and raw backend encodings reject locally before target queries or input. The
+mapping stays private to the Herdr adapter. Each request carries the complete
+unchanged canonical-LF text plus `["right", selectedChord]`, so the body precedes
+mandatory Right and the final chord. Commands and prompts use the same operation
+in separate calls; Core supplies complete start/resume text and chooses each
+call's final chord.
+
 Herdr's targeted `tab.close` closes the workspace when the tab is its last one.
 The plugin lists the captured workspace's tabs before closing and refuses that
 case. This is a preflight guard, not an atomic backend transaction.

@@ -86,7 +86,22 @@ await test("validates cwd, environment, and chords before backend mutation", asy
     env: {},
     label: "Issue",
   });
-  for (const key of ["Ctrl+Enter", "enter", "", "Shift-Enter"]) {
+  for (const key of [
+    "Ctrl+Enter",
+    "",
+    "Shift-Enter",
+    "right",
+    "enter shift+enter",
+    "enter,shift+enter",
+    "right+enter",
+    " enter",
+    "enter ",
+    "enter\n",
+    "\r",
+    "\u001b[13;2u",
+    '{"keys":["enter"]}',
+    "pane.send_input",
+  ]) {
     await assert.rejects(
       plugin.submitText(handle, "must not send", key),
       /Unsupported submitKey/,
