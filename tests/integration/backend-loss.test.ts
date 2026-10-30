@@ -8,6 +8,7 @@ import {
   contextSteps,
   createStep,
   herdr,
+  inputSteps,
   pane,
   tab,
   targetSteps,
@@ -94,15 +95,7 @@ await test("a scripted restart reusing native identities cannot authorize old ha
     ...contextSteps(),
     createStep(),
     ...targetSteps(),
-    {
-      method: "pane.send_input",
-      params: {
-        pane_id: "w1:p2",
-        text: "fresh input",
-        keys: ["right", "enter"],
-      },
-      result: { type: "ok" },
-    },
+    ...inputSteps("fresh input"),
     ...targetSteps(),
     {
       method: "tab.list",
@@ -161,7 +154,7 @@ await test("a scripted restart reusing native identities cannot authorize old ha
   assert.equal(
     server.requests.filter((request) => request.method === "pane.send_input")
       .length,
-    2,
+    4,
   );
   assert.equal(
     server.requests.filter((request) => request.method === "tab.close").length,
@@ -183,15 +176,7 @@ await test("ordinary backend rejection leaves the owned association usable for l
       error: { code: "input_failed", message: "PTY write rejected" },
     },
     ...targetSteps(),
-    {
-      method: "pane.send_input",
-      params: {
-        pane_id: "w1:p2",
-        text: "later input",
-        keys: ["right", "enter"],
-      },
-      result: { type: "ok" },
-    },
+    ...inputSteps("later input"),
     ...targetSteps(),
     {
       method: "tab.list",
@@ -224,7 +209,7 @@ await test("ordinary backend rejection leaves the owned association usable for l
   assert.equal(
     server.requests.filter((request) => request.method === "pane.send_input")
       .length,
-    2,
+    4,
   );
   assert.equal(
     server.requests.filter((request) => request.method === "tab.close").length,

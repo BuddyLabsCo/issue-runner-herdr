@@ -18,8 +18,9 @@ The initialized plugin provides three operations:
   captured at initialization; Herdr supplies the new pane's routing identities.
   Overlay keys reserved for Herdr routing are rejected.
 - `submitText(handle, text, submitKey?)` sends the complete canonical-LF body in
-  one generic `pane.send_input` request, followed by Right and the selected
-  logical chord. Omission defaults to Enter; `"enter"` and `"shift+enter"` are
+  one generic `pane.send_input` request, then sends Right and the selected
+  logical chord in separate requests, awaiting acknowledgement at each step.
+  Omission defaults to Enter; `"enter"` and `"shift+enter"` are
   supported case-insensitively, including `"Enter"` and `"Shift+Enter"`.
   Unsupported values reject before input.
   Text is not split, normalized, interpreted as argv, or escaped as shell code.
@@ -44,9 +45,12 @@ or omit the mandatory Right key.
 
 Every call preserves the complete text, including LF, Chinese/Unicode, blank
 lines, indentation, quotes, and literal shell-looking characters. The request
-contains the unchanged body and ordered keys `["right", "enter"]` or
-`["right", "shift+enter"]`; Herdr's generic input encoder writes the body before
-those keys. The plugin does not rewrite LF to CR or send each line separately.
+contains the unchanged body and no keys. After acknowledgement, the plugin
+sends empty text with `["right"]`, then empty text with `["enter"]` or
+`["shift+enter"]`, awaiting each reply. A failed or uncertain body prevents both
+keys; a failed or uncertain Right prevents the final chord. A failed final
+chord rejects without resending the body or Right. The plugin does not rewrite
+LF to CR or send each line separately.
 
 Core supplies the complete configured start command, or a complete resume
 command for a fresh tab, through ordinary `submitText(handle, command)` with
@@ -124,7 +128,15 @@ reconnect using stale associations. Ordinary backend rejections report the metho
 and backend message without invalidating otherwise live associations.
 Each socket request has a total five-second I/O deadline, including
 connection and partial replies, and a 1 MiB request/reply limit. Mutations are
-never automatically replayed. A failed creation or lost mutation reply can leave
+never automatically replayed. Initialization uses two sequential requests;
+creation uses one after local validation; submission uses two target lookups
+and three input requests; closure uses two target lookups, a tab list, and a
+close request. Their cumulative socket I/O budgets are at most 10, 5, 25, and
+20 seconds respectively, with no Agent-response wait or public timeout option.
+These budgets exclude local directory validation and event-loop scheduling.
+Each settled request clears its timer, destroys its socket, and releases pending
+transport bookkeeping. Late replies cannot resume a rejected submission.
+A failed creation or lost mutation reply can leave
 an uncertain native result; rejecting pending operations cannot undo a request
 already sent. Core owns reconciliation and recovery. A fresh factory invocation
 in valid inherited context can create a fresh tab; previous handles remain invalid
@@ -172,6 +184,14 @@ Backend-loss tests hold a pending input reply while another request disconnects,
 script a restart with reused native identities, and count mutations to check
 stale-handle rejection, absence of replay, and fresh-instance operation.
 Ordinary backend rejection is also checked to leave live associations usable.
+Timeout tests use a controlled clock and an independent test timeout guard at
+every lifecycle request, including a connection that never opens, silent replies,
+and incomplete replies. They count requests and cleared timers, release withheld
+late replies, and advance the clock after rejection to check absence of replay
+or delayed follow-up input. Failure tests reject body, Right, and final Enter
+independently, and cover malformed correlated replies, partial creation results,
+UTF-8 size limits, and backend close errors. A wall-clock partial-reply test also
+exercises the actual five-second deadline.
 The existing quality checks enforce formatting, lint, types, and architecture
 boundaries; CI is configured for Ubuntu and Windows.
 

@@ -10,7 +10,9 @@ results from this repository.
 | Factory | `pane.current {caller_pane_id}`, `workspace.get {workspace_id}` |
 | Create | `tab.create {workspace_id, cwd, label, env, focus: false}` |
 | Target validation | `tab.get {tab_id}`, `pane.get {pane_id}` |
-| Submit | `pane.send_input {pane_id, text, keys: ["right", "enter"]}` or `["right", "shift+enter"]` |
+| Submit body | `pane.send_input {pane_id, text, keys: []}` |
+| Submit Right | `pane.send_input {pane_id, text: "", keys: ["right"]}` after body acknowledgement |
+| Submit chord | `pane.send_input {pane_id, text: "", keys: ["enter"]}` or `["shift+enter"]` after Right acknowledgement |
 | Close | Target validation, `tab.list {workspace_id}`, `tab.close {tab_id}` |
 
 Each ordinary request uses a new local connection with one UTF-8 JSON line:
@@ -29,19 +31,30 @@ managed pane routing after explicit environment overrides. The plugin excludes
 inherited routing keys from its launch overlay and rejects explicit routing
 overrides so new tabs receive Herdr's own context.
 
-The generic input encoder appends encoded keys after the complete text body.
-It owns bracketed-paste encoding according to the target terminal's mode. The
-plugin therefore sends generic `pane.send_input` rather than raw `pane.send_text`,
-Agent-specific APIs, separate line submissions, or rewritten newline characters.
+The generic input encoder owns bracketed-paste encoding according to the target
+terminal's mode. The plugin sends the complete body using generic
+`pane.send_input` rather than raw `pane.send_text`, Agent-specific APIs, separate
+line submissions, or rewritten newline characters. Body, Right, and the final
+chord use separate, sequential requests so rejection or timeout stops later
+steps. Sending them together would dispatch the keys before body acknowledgement.
 
 The optional public `submitKey` string names one chord, mapped case-insensitively
 to `enter` (the default) or `shift+enter`. Other chords, whitespace, key scripts,
 and raw backend encodings reject locally before target queries or input. The
-mapping stays private to the Herdr adapter. Each request carries the complete
-unchanged canonical-LF text plus `["right", selectedChord]`, so the body precedes
-mandatory Right and the final chord. Commands and prompts use the same operation
+mapping stays private to the Herdr adapter. The first request carries the complete
+unchanged canonical-LF text with no keys; each subsequent request carries empty
+text and one key. Commands and prompts use the same operation
 in separate calls; Core supplies complete start/resume text and chooses each
 call's final chord.
+
+Every request has a total five-second deadline covering connection, writing,
+and receipt of a complete reply, including partial replies. Backend errors
+preserve the method, code, and message. Invalid correlation, malformed envelopes,
+incomplete replies, and unusable creation results reject rather than fabricate
+success. A settled request clears its timer, destroys its socket, and leaves the
+pending-request set. Timeout or transport loss can mean a mutation already
+happened; late replies cannot trigger follow-up keys or automatic replay.
+The plugin cannot undo text or keys already acknowledged by the backend.
 
 Herdr's targeted `tab.close` closes the workspace when the tab is its last one.
 The plugin lists the captured workspace's tabs before closing and refuses that

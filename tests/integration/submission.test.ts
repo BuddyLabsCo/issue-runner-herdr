@@ -5,6 +5,7 @@ import {
   contextSteps,
   createStep,
   herdr,
+  inputSteps,
   targetSteps,
 } from "../fixtures/herdr.ts";
 
@@ -16,15 +17,7 @@ for (const submitKey of ["enter", "shift+enter"]) {
       ...contextSteps(),
       createStep(),
       ...targetSteps(),
-      {
-        method: "pane.send_input",
-        params: {
-          pane_id: "w1:p2",
-          text,
-          keys: ["right", submitKey],
-        },
-        result: { type: "ok" },
-      },
+      ...inputSteps(text, submitKey),
     ]);
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
@@ -34,7 +27,7 @@ for (const submitKey of ["enter", "shift+enter"]) {
       label: "Issue",
     });
     await plugin.submitText(handle, text, submitKey);
-    assert.equal(server.requests.length, 6);
+    assert.equal(server.requests.length, 8);
   });
 }
 
@@ -47,35 +40,11 @@ for (const command of [
       ...contextSteps(),
       createStep(),
       ...targetSteps(),
-      {
-        method: "pane.send_input",
-        params: {
-          pane_id: "w1:p2",
-          text: command,
-          keys: ["right", "enter"],
-        },
-        result: { type: "ok" },
-      },
+      ...inputSteps(command),
       ...targetSteps(),
-      {
-        method: "pane.send_input",
-        params: {
-          pane_id: "w1:p2",
-          text: "First prompt\n\n  keep indentation",
-          keys: ["right", "shift+enter"],
-        },
-        result: { type: "ok" },
-      },
+      ...inputSteps("First prompt\n\n  keep indentation", "shift+enter"),
       ...targetSteps(),
-      {
-        method: "pane.send_input",
-        params: {
-          pane_id: "w1:p2",
-          text: "Later prompt",
-          keys: ["right", "enter"],
-        },
-        result: { type: "ok" },
-      },
+      ...inputSteps("Later prompt"),
     ]);
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
@@ -91,6 +60,6 @@ for (const command of [
       "shift+enter",
     );
     await plugin.submitText(handle, "Later prompt", "enter");
-    assert.equal(server.requests.length, 12);
+    assert.equal(server.requests.length, 18);
   });
 }

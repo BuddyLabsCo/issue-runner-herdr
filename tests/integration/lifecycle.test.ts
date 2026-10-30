@@ -6,6 +6,7 @@ import {
   contextSteps,
   createStep,
   herdr,
+  inputSteps,
   targetSteps,
   type Step,
 } from "../fixtures/herdr.ts";
@@ -136,6 +137,10 @@ await test("independent handles can submit concurrently without target crossover
       },
     },
   ];
+  const inputs = new Map([
+    ["w1:p2", inputSteps("first")],
+    ["w1:p3", inputSteps("second", "enter", "w1:p3")],
+  ]);
   const server = await herdr((request): Step => {
     if (setup.length) return setup.shift()!;
     if (request.method === "tab.get") {
@@ -163,12 +168,9 @@ await test("independent handles can submit concurrently without target crossover
       };
     }
     assert.equal(request.method, "pane.send_input");
-    assert.deepEqual(request.params, {
-      pane_id: request.params.text === "first" ? "w1:p2" : "w1:p3",
-      text: request.params.text,
-      keys: ["right", "enter"],
-    });
-    return { method: "pane.send_input", result: { type: "ok" } };
+    const step = inputs.get(String(request.params.pane_id))?.shift();
+    assert.ok(step, "input must stay ordered within its owned pane");
+    return step;
   });
   t.after(() => server.close());
   const plugin = await contract.createTerminalPlugin();
@@ -190,7 +192,7 @@ await test("independent handles can submit concurrently without target crossover
   assert.equal(
     server.requests.filter((request) => request.method === "pane.send_input")
       .length,
-    2,
+    6,
   );
 });
 
@@ -199,7 +201,7 @@ await test("completes the public lifecycle and closes only the owned native tab"
     ...contextSteps(),
     createStep(),
     ...targetSteps(),
-    { method: "pane.send_input", result: { type: "ok" } },
+    ...inputSteps("echo done"),
     ...targetSteps(),
     {
       method: "tab.list",
@@ -244,21 +246,9 @@ await test("submits complete LF text then Right and the selected chord to the re
     ...contextSteps(),
     createStep(),
     ...targetSteps(),
-    {
-      method: "pane.send_input",
-      params: {
-        pane_id: "w1:p2",
-        text: "codex resume session-4",
-        keys: ["right", "enter"],
-      },
-      result: { type: "ok" },
-    },
+    ...inputSteps("codex resume session-4"),
     ...targetSteps(),
-    {
-      method: "pane.send_input",
-      params: { pane_id: "w1:p2", text, keys: ["right", "shift+enter"] },
-      result: { type: "ok" },
-    },
+    ...inputSteps(text, "shift+enter"),
   ]);
   t.after(() => server.close());
   const plugin = await contract.createTerminalPlugin();

@@ -165,10 +165,17 @@ export async function initialize() {
           {
             pane_id: owned.pane,
             text,
-            keys: ["right", key],
+            keys: [],
           },
           "ok",
         );
+        for (const chord of ["right", key]) {
+          await client.request(
+            "pane.send_input",
+            { pane_id: owned.pane, text: "", keys: [chord] },
+            "ok",
+          );
+        }
       } catch (error) {
         if (error instanceof BackendError && error.code === "pane_not_found") {
           throw new InvalidTargetError(error.message);

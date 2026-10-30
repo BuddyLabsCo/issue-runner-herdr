@@ -7,6 +7,7 @@ import {
   contextSteps,
   createStep,
   herdr,
+  inputSteps,
   pane,
   tab,
   targetSteps,
@@ -47,25 +48,9 @@ await test("out-of-order creation replies keep each handle associated with its o
   const setup = contextSteps();
   const submissions: Step[] = [
     ...targetSteps(),
-    {
-      method: "pane.send_input",
-      params: {
-        pane_id: "w1:p2",
-        text: "first",
-        keys: ["right", "enter"],
-      },
-      result: { type: "ok" },
-    },
+    ...inputSteps("first"),
     ...secondTargets,
-    {
-      method: "pane.send_input",
-      params: {
-        pane_id: "w1:p3",
-        text: "second",
-        keys: ["right", "enter"],
-      },
-      result: { type: "ok" },
-    },
+    ...inputSteps("second", "enter", "w1:p3"),
   ];
   const server = await herdr((request): Step => {
     if (setup.length) return setup.shift()!;
@@ -137,25 +122,9 @@ await test("closing one tab overlaps another tab's submission without following 
       waitFor: releaseClose,
     },
     targetSteps()[1]!,
-    {
-      method: "pane.send_input",
-      params: {
-        pane_id: "w1:p2",
-        text: "while closing",
-        keys: ["right", "enter"],
-      },
-      result: { type: "ok" },
-    },
+    ...inputSteps("while closing"),
     ...targetSteps(),
-    {
-      method: "pane.send_input",
-      params: {
-        pane_id: "w1:p2",
-        text: "still live",
-        keys: ["right", "enter"],
-      },
-      result: { type: "ok" },
-    },
+    ...inputSteps("still live"),
   ];
   const server = await herdr((request) => {
     const step = script.shift();
@@ -201,25 +170,9 @@ await test("opaque handles stay instance-owned across backends with overlapping 
     ...contextSteps(),
     createStep(),
     ...targetSteps(),
-    {
-      method: "pane.send_input",
-      params: {
-        pane_id: "w1:p2",
-        text: "first backend",
-        keys: ["right", "enter"],
-      },
-      result: { type: "ok" },
-    },
+    ...inputSteps("first backend"),
     ...targetSteps(),
-    {
-      method: "pane.send_input",
-      params: {
-        pane_id: "w1:p2",
-        text: "first backend still live",
-        keys: ["right", "enter"],
-      },
-      result: { type: "ok" },
-    },
+    ...inputSteps("first backend still live"),
   ]);
   t.after(() => firstServer.close());
   const first = await createTerminalPlugin();
