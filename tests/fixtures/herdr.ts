@@ -68,6 +68,28 @@ export const targetSteps = (): Step[] => [
   },
 ];
 
+export const inputSteps = (
+  text: string,
+  key = "enter",
+  paneId = pane.pane_id,
+): Step[] => [
+  {
+    method: "pane.send_input",
+    params: { pane_id: paneId, text, keys: [] },
+    result: { type: "ok" },
+  },
+  {
+    method: "pane.send_input",
+    params: { pane_id: paneId, text: "", keys: ["right"] },
+    result: { type: "ok" },
+  },
+  {
+    method: "pane.send_input",
+    params: { pane_id: paneId, text: "", keys: [key] },
+    result: { type: "ok" },
+  },
+];
+
 export async function herdr(script: Step[] | ((request: Request) => Step)) {
   const socketPath = join(tmpdir(), `herdr-${randomUUID()}.sock`);
   const address =
