@@ -18,8 +18,10 @@ The initialized plugin provides three operations:
   captured at initialization; Herdr supplies the new pane's routing identities.
   Overlay keys reserved for Herdr routing are rejected.
 - `submitText(handle, text, submitKey?)` sends the complete canonical-LF body in
-  one generic `pane.send_input` request, followed by Right and Enter (default or
-  explicit `"Enter"`) or `"Shift+Enter"`. Unsupported chords reject before input.
+  one generic `pane.send_input` request, followed by Right and the selected
+  logical chord. Omission defaults to Enter; `"enter"` and `"shift+enter"` are
+  supported case-insensitively, including `"Enter"` and `"Shift+Enter"`.
+  Unsupported values reject before input.
   Text is not split, normalized, interpreted as argv, or escaped as shell code.
 - `closeTab(handle)` closes only the native tab recorded for that owned handle.
   Foreign and invalid handles reject. A known absent or previously closed tab
@@ -31,6 +33,29 @@ startup delay, prompts, completion validation, workflow, retries, and recovery.
 Creation does not launch an Agent or prove shell readiness. Submission success
 reports backend acknowledgement, not Agent acceptance. Closing does not prove
 process or descendant exit.
+
+## Submission semantics
+
+`submitKey` remains an optional string describing one logical submission chord.
+Only Enter and Shift+Enter are supported. Whitespace, multiple-key scripts,
+raw escape sequences, backend commands, and other chords reject locally before
+target queries or body dispatch. Rejection does not fall back to another chord
+or omit the mandatory Right key.
+
+Every call preserves the complete text, including LF, Chinese/Unicode, blank
+lines, indentation, quotes, and literal shell-looking characters. The request
+contains the unchanged body and ordered keys `["right", "enter"]` or
+`["right", "shift+enter"]`; Herdr's generic input encoder writes the body before
+those keys. The plugin does not rewrite LF to CR or send each line separately.
+
+Core supplies the complete configured start command, or a complete resume
+command for a fresh tab, through ordinary `submitText(handle, command)` with
+Enter. A later prompt is a separate call such as
+`submitText(handle, prompt, "shift+enter")`. Core chooses each call's chord;
+the plugin does not infer it from the command or Agent brand, remember a previous
+call's selection, merge command and prompt, or add startup delays. Core retains
+command construction, literal session-reference replacement, startup timing,
+Probe/result validation, and recovery policy.
 
 ## Working context
 
@@ -120,6 +145,9 @@ Tests call the real public factory and operations through a private, scripted
 local-socket substitute. They exercise actual UTF-8 JSON-line encoding,
 caller-context validation, creation, LF/CJK/literal text, chord ordering, owned
 targeting, concurrent handles, closure, failures, and finite timeout behavior.
+Focused unit tests cover chord defaulting, case-insensitive mapping, and rejection.
+Submission tests verify exact protocol requests for start/resume commands in
+fresh tabs and subsequent prompts with independently selected chords.
 The existing quality checks enforce formatting, lint, types, and architecture
 boundaries; CI is configured for Ubuntu and Windows.
 

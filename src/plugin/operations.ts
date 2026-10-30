@@ -1,4 +1,5 @@
 import type { TerminalPlugin } from "issue-runner-core/terminal";
+import { encodeSubmitKey } from "../herdr/keys.ts";
 import {
   InvalidTargetError,
   type Host,
@@ -37,9 +38,7 @@ export function operations(host: Host): TerminalPlugin {
       const owned = handles.get(handle);
       if (!owned) throw new Error("Unknown or foreign tab handle");
       if (closed.has(handle)) throw new Error("Owned tab is closed");
-      if (submitKey !== "Enter" && submitKey !== "Shift+Enter") {
-        throw new Error(`Unsupported submitKey: ${submitKey}`);
-      }
+      const key = encodeSubmitKey(submitKey);
       if (typeof text !== "string")
         throw new Error("submitText requires a string");
       if (!(await exists(handle, owned))) {
@@ -47,11 +46,7 @@ export function operations(host: Host): TerminalPlugin {
         throw new Error("Owned tab is absent");
       }
       try {
-        await host.submit(
-          owned,
-          text,
-          submitKey === "Enter" ? "enter" : "shift+enter",
-        );
+        await host.submit(owned, text, key);
       } catch (error) {
         if (error instanceof InvalidTargetError) invalid.add(handle);
         throw error;
