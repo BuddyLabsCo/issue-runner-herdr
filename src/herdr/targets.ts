@@ -55,8 +55,11 @@ function target(value: unknown, client: Client): Target {
 
 export async function initialize() {
   const environment = { ...process.env };
-  const socketPath = environment.HERDR_SOCKET_PATH;
-  const callerPane = environment.HERDR_PANE_ID;
+  // Preserve Windows' case-insensitive lookup for inherited routing identities.
+  const socketPath = process.env.HERDR_SOCKET_PATH;
+  const callerPane = process.env.HERDR_PANE_ID;
+  const inheritedWorkspace = process.env.HERDR_WORKSPACE_ID;
+  const inheritedTab = process.env.HERDR_TAB_ID;
   if (
     !socketPath ||
     !fullyAbsolute(socketPath) ||
@@ -79,10 +82,9 @@ export async function initialize() {
     caller = target(result.pane, client);
     if (
       caller.pane !== callerPane ||
-      (environment.HERDR_WORKSPACE_ID !== undefined &&
-        environment.HERDR_WORKSPACE_ID !== caller.workspace) ||
-      (environment.HERDR_TAB_ID !== undefined &&
-        environment.HERDR_TAB_ID !== caller.tab)
+      (inheritedWorkspace !== undefined &&
+        inheritedWorkspace !== caller.workspace) ||
+      (inheritedTab !== undefined && inheritedTab !== caller.tab)
     ) {
       throw new Error(
         "Herdr caller pane conflicts with inherited host context",

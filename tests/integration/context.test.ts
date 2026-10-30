@@ -45,6 +45,61 @@ await test("captures inherited identities before the caller lookup completes", a
   assert.equal(steps.length, 0);
 });
 
+for (const [key, spelling] of [
+  ["HERDR_SOCKET_PATH", "herdr_socket_path"],
+  ["HERDR_PANE_ID", "HeRdR_PaNe_Id"],
+] as const) {
+  await test(
+    `Windows accepts inherited ${spelling} through native environment lookup`,
+    { skip: process.platform !== "win32" },
+    async (t) => {
+      const server = await herdr(contextSteps());
+      t.after(() => server.close());
+      const value = process.env[key];
+      assert.ok(value);
+      delete process.env[key];
+      process.env[spelling] = value;
+      assert.equal(process.env[key], value);
+      await createTerminalPlugin();
+      assert.deepEqual(
+        server.requests.map((request) => request.method),
+        ["pane.current", "workspace.get"],
+      );
+    },
+  );
+}
+
+for (const [key, spelling, value] of [
+  ["HERDR_WORKSPACE_ID", "herdr_workspace_id", "w9"],
+  ["HERDR_TAB_ID", "HeRdR_TaB_Id", "w9:t9"],
+] as const) {
+  await test(
+    `Windows rejects conflicting inherited ${spelling} before workspace lookup`,
+    { skip: process.platform !== "win32" },
+    async (t) => {
+      const server = await herdr((request) => {
+        const step = contextSteps().find(
+          (step) => step.method === request.method,
+        );
+        assert.ok(step);
+        return step;
+      });
+      t.after(() => server.close());
+      delete process.env[key];
+      process.env[spelling] = value;
+      assert.equal(process.env[key], value);
+      await assert.rejects(
+        createTerminalPlugin(),
+        /Launch Runner inside.*conflicts with inherited host context/,
+      );
+      assert.deepEqual(
+        server.requests.map((request) => request.method),
+        ["pane.current"],
+      );
+    },
+  );
+}
+
 for (const key of ["HERDR_WORKSPACE_ID", "HERDR_TAB_ID"]) {
   for (const value of ["", "invalid", "w9", "w9:t9"]) {
     await test(`rejects inconsistent inherited ${key}=${JSON.stringify(value)}`, async (t) => {
