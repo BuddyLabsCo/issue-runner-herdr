@@ -118,15 +118,26 @@ one handle leaves other live handles usable. Separate instances retain their
 own backend contexts, even when different servers issue identical native IDs.
 The plugin checks recorded tab/pane/terminal identities before mutation.
 Detected target loss invalidates the handle; transport or protocol
-loss invalidates the instance. Backend errors reject with the method and backend
-message. Each socket request has a total five-second I/O deadline, including
+loss invalidates every association in that instance and immediately rejects its
+pending socket operations with the original loss reason. Later operations cannot
+reconnect using stale associations. Ordinary backend rejections report the method
+and backend message without invalidating otherwise live associations.
+Each socket request has a total five-second I/O deadline, including
 connection and partial replies, and a 1 MiB request/reply limit. Mutations are
 never automatically replayed. A failed creation or lost mutation reply can leave
-an uncertain native result; Core owns reconciliation and recovery.
+an uncertain native result; rejecting pending operations cannot undo a request
+already sent. Core owns reconciliation and recovery. A fresh factory invocation
+in valid inherited context can create a fresh tab; previous handles remain invalid
+and cannot be transferred to that instance. The plugin does not adopt live tabs
+or restart an Agent.
 
 Herdr does not offer an atomic identity-check-and-mutate operation. Preflight
 checks reject known unsafe targets but cannot establish that native IDs survive
 server restart or prevent a target changing between a check and mutation.
+There is no continuous connection or restart notification: loss is detected through
+failed, incomplete, or malformed requests and inconsistent target identities.
+A restart between successful requests that reuses every checked identity can go
+undetected; the plugin cannot promise identity continuity in that case.
 Core serializes calls on one handle; separate handles can operate concurrently.
 
 ## Development and verification
@@ -157,6 +168,10 @@ fresh tabs and subsequent prompts with independently selected chords.
 Isolation tests hold scripted replies to force out-of-order creation and
 overlapping submit/close operations, and use separate socket substitutes with
 overlapping native IDs to check instance ownership.
+Backend-loss tests hold a pending input reply while another request disconnects,
+script a restart with reused native identities, and count mutations to check
+stale-handle rejection, absence of replay, and fresh-instance operation.
+Ordinary backend rejection is also checked to leave live associations usable.
 The existing quality checks enforce formatting, lint, types, and architecture
 boundaries; CI is configured for Ubuntu and Windows.
 

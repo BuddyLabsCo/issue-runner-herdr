@@ -17,6 +17,7 @@ export class BackendError extends Error {
 export class Client {
   readonly address: string;
   failure: Error | undefined;
+  private readonly pending = new Set<(error: Error) => void>();
 
   constructor(socketPath: string) {
     this.address =
@@ -24,9 +25,11 @@ export class Client {
   }
 
   invalidate(message: string): Error {
-    this.failure ??= new Error(
+    if (this.failure) return this.failure;
+    this.failure = new Error(
       `Herdr context invalidated: ${message}. Initialize a new plugin; do not replay uncertain input.`,
     );
+    for (const finish of this.pending) finish(this.failure);
     return this.failure;
   }
 
@@ -50,6 +53,7 @@ export class Client {
       const finish = (error?: Error, result?: Record<string, unknown>) => {
         if (settled) return;
         settled = true;
+        this.pending.delete(finish);
         clearTimeout(timer);
         socket.destroy();
         if (error) {
@@ -72,6 +76,7 @@ export class Client {
           ),
         5000,
       );
+      this.pending.add(finish);
       socket.setEncoding("utf8");
       socket.once("connect", () => socket.write(wire));
       socket.on("error", (error) => finish(error));
