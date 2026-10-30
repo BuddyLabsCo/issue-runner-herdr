@@ -42,6 +42,21 @@ supplied explicitly on every creation. UI focus and display labels never select
 targets. Missing, conflicting, or unusable context rejects; the plugin does not
 install or start a server, select a default server, or probe capabilities.
 
+The inherited environment is captured before the first lookup. Workspace/tab
+IDs are optional consistency checks; if present, they must be nonempty and match
+the queried caller. An inherited workspace ID alone cannot initialize the plugin
+without a caller pane, and missing or ambiguous lookup results never authorize
+following focus.
+
+Initialization lookup failures report `Herdr host context could not be initialized`
+with launch guidance and the original backend/protocol reason. Launch Runner again
+from a live pane in the intended Herdr server, preserving that pane's inherited
+`HERDR_SOCKET_PATH` and `HERDR_PANE_ID` together. A missing or malformed required
+value rejects before any server request. For stale panes/workspaces, conflicting
+workspace/tab IDs, ambiguous results, or an unavailable socket, check the launch
+wrapper for copied or overwritten `HERDR_*` values. Initialization only reads
+context; a rejected factory creates no terminal resources.
+
 Handles belong to one plugin instance and must not be inspected, persisted, or
 reconstructed. The plugin checks recorded tab/pane/terminal identities before
 mutation. Detected target loss invalidates the handle; transport or protocol
