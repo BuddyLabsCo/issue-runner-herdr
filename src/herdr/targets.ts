@@ -54,8 +54,9 @@ function target(value: unknown, client: Client): Target {
 }
 
 export async function initialize() {
-  const socketPath = process.env.HERDR_SOCKET_PATH;
-  const callerPane = process.env.HERDR_PANE_ID;
+  const environment = { ...process.env };
+  const socketPath = environment.HERDR_SOCKET_PATH;
+  const callerPane = environment.HERDR_PANE_ID;
   if (
     !socketPath ||
     !fullyAbsolute(socketPath) ||
@@ -64,37 +65,48 @@ export async function initialize() {
     !/^w[1-9]\d*:p[1-9]\d*$/.test(callerPane)
   ) {
     throw new Error(
-      "Launch Runner inside Herdr 0.9.5 with inherited HERDR_SOCKET_PATH and HERDR_PANE_ID",
+      "Herdr host context is missing or malformed. Launch Runner inside Herdr 0.9.5 with inherited HERDR_SOCKET_PATH and HERDR_PANE_ID",
     );
   }
   const client = new Client(socketPath);
-  const result = await client.request(
-    "pane.current",
-    { caller_pane_id: callerPane },
-    "pane_current",
-  );
-  const caller = target(result.pane, client);
-  if (
-    caller.pane !== callerPane ||
-    (process.env.HERDR_WORKSPACE_ID &&
-      process.env.HERDR_WORKSPACE_ID !== caller.workspace) ||
-    (process.env.HERDR_TAB_ID && process.env.HERDR_TAB_ID !== caller.tab)
-  ) {
-    throw new Error("Herdr caller pane conflicts with inherited host context");
-  }
-  const workspace = await client.request(
-    "workspace.get",
-    { workspace_id: caller.workspace },
-    "workspace_info",
-  );
-  if (
-    !record(workspace.workspace) ||
-    workspace.workspace.workspace_id !== caller.workspace
-  ) {
-    throw new Error("Herdr caller workspace could not be validated");
+  let caller: Target;
+  try {
+    const result = await client.request(
+      "pane.current",
+      { caller_pane_id: callerPane },
+      "pane_current",
+    );
+    caller = target(result.pane, client);
+    if (
+      caller.pane !== callerPane ||
+      (environment.HERDR_WORKSPACE_ID !== undefined &&
+        environment.HERDR_WORKSPACE_ID !== caller.workspace) ||
+      (environment.HERDR_TAB_ID !== undefined &&
+        environment.HERDR_TAB_ID !== caller.tab)
+    ) {
+      throw new Error(
+        "Herdr caller pane conflicts with inherited host context",
+      );
+    }
+    const workspace = await client.request(
+      "workspace.get",
+      { workspace_id: caller.workspace },
+      "workspace_info",
+    );
+    if (
+      !record(workspace.workspace) ||
+      workspace.workspace.workspace_id !== caller.workspace
+    ) {
+      throw new Error("Herdr caller workspace could not be validated");
+    }
+  } catch (error) {
+    throw new Error(
+      `Herdr host context could not be initialized. Launch Runner inside Herdr 0.9.5 with inherited HERDR_SOCKET_PATH and HERDR_PANE_ID from the same live pane/server: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
   }
   const inherited = Object.fromEntries(
-    Object.entries(process.env).filter(
+    Object.entries(environment).filter(
       ([key, value]) =>
         value !== undefined && !routingKeys.has(key.toUpperCase()),
     ),
