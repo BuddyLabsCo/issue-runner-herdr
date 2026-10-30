@@ -46,6 +46,55 @@ await test("initializes from the caller and creates one owned interactive tab", 
   assert.equal(request.params.command, undefined);
 });
 
+for (const { overlay, caseSensitiveEntries } of [
+  {
+    overlay: { REVIEWOVERLAY: "requested" },
+    caseSensitiveEntries: [
+      ["ReviewOverlay", "inherited"],
+      ["REVIEWOVERLAY", "requested"],
+    ],
+  },
+  {
+    overlay: { REVIEWOVERLAY: "earlier", ReviewOverlay: "requested" },
+    caseSensitiveEntries: [
+      ["ReviewOverlay", "requested"],
+      ["REVIEWOVERLAY", "earlier"],
+    ],
+  },
+]) {
+  await test(`environment overlays respect platform casing: ${JSON.stringify(overlay)}`, async (t) => {
+    const server = await herdr([...contextSteps(), createStep()]);
+    t.after(() => server.close());
+    process.env.ReviewOverlay = "inherited";
+    process.env.ReviewInheritedOnly = "retained";
+    const plugin = await contract.createTerminalPlugin();
+    await plugin.createTab({
+      cwd: process.cwd(),
+      env: Object.freeze(overlay),
+      label: "Environment overlay",
+    });
+    const env = server.requests[2]?.params.env as Record<string, string>;
+    const entries = Object.entries(env).filter(
+      ([key]) => key.toUpperCase() === "REVIEWOVERLAY",
+    );
+    assert.deepEqual(
+      entries.map(([key, value]) => [
+        process.platform === "win32" ? key.toUpperCase() : key,
+        value,
+      ]),
+      process.platform === "win32"
+        ? [["REVIEWOVERLAY", "requested"]]
+        : caseSensitiveEntries,
+    );
+    assert.equal(
+      Object.entries(env).find(
+        ([key]) => key.toUpperCase() === "REVIEWINHERITEDONLY",
+      )?.[1],
+      "retained",
+    );
+  });
+}
+
 await test("independent handles can submit concurrently without target crossover", async (t) => {
   const setup = [
     ...contextSteps(),

@@ -237,7 +237,14 @@ export async function initialize() {
           workspace_id: caller.workspace,
           cwd: options.cwd,
           label: options.label,
-          env: { ...inherited, ...options.env },
+          env: Object.fromEntries(
+            [...Object.entries(inherited), ...Object.entries(options.env)].map(
+              ([key, value]) => [
+                process.platform === "win32" ? key.toUpperCase() : key,
+                value,
+              ],
+            ),
+          ),
           focus: false,
         },
         "tab_created",
