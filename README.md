@@ -26,14 +26,24 @@ The initialized plugin provides three operations:
   Text is not split, normalized, interpreted as argv, or escaped as shell code.
 - `closeTab(handle)` closes only the native tab recorded for that owned handle.
   Foreign and invalid handles reject. A known absent or previously closed tab
-  closes successfully. Closing the last tab is refused because Herdr would also
-  remove the host workspace.
+  closes successfully; repeated close after established success makes no backend
+  requests. Closing the last tab is refused because Herdr would also remove the
+  host workspace.
+
+A `tab_not_found` lookup alone does not establish safe absence. The plugin also
+revalidates the captured Runner pane's workspace, tab, pane and terminal identity,
+then requires an unambiguous workspace tab list containing the Runner tab and
+excluding the owned tab. Missing context, contradictory or malformed lists,
+generic not-found errors, transport errors and ordinary backend close failures
+reject rather than claim closure. A handle established to be closed or absent
+cannot receive later input; other owned handles remain usable.
 
 Core owns Agent configuration, complete start/resume shell-command text, the
 startup delay, prompts, completion validation, workflow, retries, and recovery.
 Creation does not launch an Agent or prove shell readiness. Submission success
-reports backend acknowledgement, not Agent acceptance. Closing does not prove
-process or descendant exit.
+reports backend acknowledgement, not Agent acceptance. Closing invokes the
+targeted backend operation; it does not prove process or descendant exit or
+writer settlement.
 
 ## Submission semantics
 
@@ -130,8 +140,10 @@ Each socket request has a total five-second I/O deadline, including
 connection and partial replies, and a 1 MiB request/reply limit. Mutations are
 never automatically replayed. Initialization uses two sequential requests;
 creation uses one after local validation; submission uses two target lookups
-and three input requests; closure uses two target lookups, a tab list, and a
-close request. Their cumulative socket I/O budgets are at most 10, 5, 25, and
+and three input requests; present-tab closure uses two target lookups, a tab list,
+and a close request. Known-absent confirmation instead uses the failed tab lookup,
+a Runner pane lookup and a tab list, with no close request.
+Their cumulative socket I/O budgets are at most 10, 5, 25, and
 20 seconds respectively, with no Agent-response wait or public timeout option.
 These budgets exclude local directory validation and event-loop scheduling.
 Each settled request clears its timer, destroys its socket, and releases pending
@@ -184,6 +196,9 @@ Backend-loss tests hold a pending input reply while another request disconnects,
 script a restart with reused native identities, and count mutations to check
 stale-handle rejection, absence of replay, and fresh-instance operation.
 Ordinary backend rejection is also checked to leave live associations usable.
+Closure tests script present, absent, contradictory and failed backend replies,
+check exact tab targeting, and keep Runner, another Issue and unrelated resources
+untouched while the other Issue handle remains usable.
 Timeout tests use a controlled clock and an independent test timeout guard at
 every lifecycle request, including a connection that never opens, silent replies,
 and incomplete replies. They count requests and cleared timers, release withheld

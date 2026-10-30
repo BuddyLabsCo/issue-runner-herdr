@@ -113,6 +113,56 @@ export async function initialize() {
         value !== undefined && !routingKeys.has(key.toUpperCase()),
     ),
   );
+  async function tabIds() {
+    const listed = await client.request(
+      "tab.list",
+      { workspace_id: caller.workspace },
+      "tab_list",
+    );
+    if (
+      !Array.isArray(listed.tabs) ||
+      !listed.tabs.every(
+        (item: unknown) =>
+          record(item) &&
+          item.workspace_id === caller.workspace &&
+          typeof item.tab_id === "string" &&
+          new RegExp(`^${caller.workspace}:t[1-9]\\d*$`).test(item.tab_id),
+      )
+    ) {
+      throw client.invalidate("workspace tab list is malformed");
+    }
+    const ids = new Set(
+      listed.tabs.map((item: unknown) =>
+        record(item) ? item.tab_id : undefined,
+      ),
+    );
+    if (ids.size !== listed.tabs.length) {
+      throw client.invalidate("workspace tab list is ambiguous");
+    }
+    return ids;
+  }
+  async function confirmAbsence(owned: Target) {
+    const current = await client.request(
+      "pane.get",
+      { pane_id: caller.pane },
+      "pane_info",
+    );
+    const runner = target(current.pane, client);
+    if (
+      runner.workspace !== caller.workspace ||
+      runner.tab !== caller.tab ||
+      runner.pane !== caller.pane ||
+      runner.terminal !== caller.terminal
+    ) {
+      throw new InvalidTargetError("Runner context identity changed");
+    }
+    const ids = await tabIds();
+    if (!ids.has(caller.tab) || ids.has(owned.tab)) {
+      throw new InvalidTargetError(
+        "Owned tab absence is unresolved in workspace tab list",
+      );
+    }
+  }
   return {
     client,
     caller,
@@ -125,9 +175,10 @@ export async function initialize() {
           "tab_info",
         );
       } catch (error) {
-        if (error instanceof BackendError && error.code === "tab_not_found")
-          return false;
-        throw error;
+        if (!(error instanceof BackendError) || error.code !== "tab_not_found")
+          throw error;
+        await confirmAbsence(owned);
+        return false;
       }
       let current;
       try {
@@ -184,34 +235,13 @@ export async function initialize() {
       }
     },
     async close(owned: Target) {
-      const listed = await client.request(
-        "tab.list",
-        { workspace_id: owned.workspace },
-        "tab_list",
-      );
-      if (
-        !Array.isArray(listed.tabs) ||
-        !listed.tabs.every(
-          (item: unknown) =>
-            record(item) &&
-            item.workspace_id === owned.workspace &&
-            typeof item.tab_id === "string" &&
-            new RegExp(`^${owned.workspace}:t[1-9]\\d*$`).test(item.tab_id),
-        ) ||
-        !listed.tabs.some(
-          (item: unknown) => record(item) && item.tab_id === owned.tab,
-        )
-      ) {
+      const ids = await tabIds();
+      if (!ids.has(owned.tab)) {
         throw client.invalidate(
           "owned tab is unresolved in workspace tab list",
         );
       }
-      const ids = new Set(
-        listed.tabs.map((item: unknown) =>
-          record(item) ? item.tab_id : undefined,
-        ),
-      );
-      if (ids.size !== listed.tabs.length || ids.size < 2) {
+      if (ids.size < 2) {
         throw new Error(
           "Refusing to close the last tab: Herdr would also close the host workspace",
         );
