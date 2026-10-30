@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "issue-runner-core": "file:issue-runner-core-contract.1.tgz"
+  }
+}
