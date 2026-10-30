@@ -110,8 +110,14 @@ wrapper for copied or overwritten `HERDR_*` values. Initialization only reads
 context; a rejected factory creates no terminal resources.
 
 Handles belong to one plugin instance and must not be inspected, persisted, or
-reconstructed. The plugin checks recorded tab/pane/terminal identities before
-mutation. Detected target loss invalidates the handle; transport or protocol
+reconstructed. Fabricated objects, copies of handles, and another instance's
+handles reject before backend queries or mutation; native IDs are not a public
+addressing mechanism. Concurrent creations associate each handle with the tab
+and root pane in its own reply, even when replies arrive out of order. Closing
+one handle leaves other live handles usable. Separate instances retain their
+own backend contexts, even when different servers issue identical native IDs.
+The plugin checks recorded tab/pane/terminal identities before mutation.
+Detected target loss invalidates the handle; transport or protocol
 loss invalidates the instance. Backend errors reject with the method and backend
 message. Each socket request has a total five-second I/O deadline, including
 connection and partial replies, and a 1 MiB request/reply limit. Mutations are
@@ -148,6 +154,9 @@ targeting, concurrent handles, closure, failures, and finite timeout behavior.
 Focused unit tests cover chord defaulting, case-insensitive mapping, and rejection.
 Submission tests verify exact protocol requests for start/resume commands in
 fresh tabs and subsequent prompts with independently selected chords.
+Isolation tests hold scripted replies to force out-of-order creation and
+overlapping submit/close operations, and use separate socket substitutes with
+overlapping native IDs to check instance ownership.
 The existing quality checks enforce formatting, lint, types, and architecture
 boundaries; CI is configured for Ubuntu and Windows.
 

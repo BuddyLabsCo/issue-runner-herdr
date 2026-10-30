@@ -19,6 +19,7 @@ export interface Step {
   raw?: string;
   disconnect?: boolean;
   stall?: boolean;
+  waitFor?: Promise<unknown>;
 }
 
 export const caller = {
@@ -82,7 +83,7 @@ export async function herdr(script: Step[] | ((request: Request) => Step)) {
     });
     socket.setEncoding("utf8");
     let buffer = "";
-    socket.on("data", (chunk: string) => {
+    async function receive(chunk: string) {
       buffer += chunk;
       if (!buffer.includes("\n")) return;
       try {
@@ -94,6 +95,7 @@ export async function herdr(script: Step[] | ((request: Request) => Step)) {
         assert.ok(step, `unexpected ${request.method}`);
         assert.equal(request.method, step.method);
         if (step.params) assert.deepEqual(request.params, step.params);
+        if (step.waitFor) await step.waitFor;
         if (step.disconnect) {
           socket.destroy();
         } else if (step.stall && step.raw) {
@@ -113,6 +115,9 @@ export async function herdr(script: Step[] | ((request: Request) => Step)) {
         failures.push(error);
         socket.destroy();
       }
+    }
+    socket.on("data", (chunk: string) => {
+      void receive(chunk);
     });
   });
   server.listen(address);
