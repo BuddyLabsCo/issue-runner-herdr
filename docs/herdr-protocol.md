@@ -14,6 +14,7 @@ results from this repository.
 | Submit Right | `pane.send_input {pane_id, text: "", keys: ["right"]}` after body acknowledgement |
 | Submit chord | `pane.send_input {pane_id, text: "", keys: ["enter"]}` or `["shift+enter"]` after Right acknowledgement |
 | Close | Target validation, `tab.list {workspace_id}`, `tab.close {tab_id}` |
+| Confirm absent after `tab.get` returns `tab_not_found` | `pane.get {pane_id: captured Runner pane}`, `tab.list {workspace_id}`; no close request |
 
 Each ordinary request uses a new local connection with one UTF-8 JSON line:
 `{id, method, params}`. The response is `{id, result: {type, ...}}` or
@@ -59,6 +60,19 @@ The plugin cannot undo text or keys already acknowledged by the backend.
 Herdr's targeted `tab.close` closes the workspace when the tab is its last one.
 The plugin lists the captured workspace's tabs before closing and refuses that
 case. This is a preflight guard, not an atomic backend transaction.
+
+For an owned tab whose lookup reports `tab_not_found`, that error only starts an
+absence check. The captured Runner pane must still resolve to its original
+workspace, tab, pane and terminal IDs. A complete, validated tab list for that
+workspace must contain the Runner tab and omit the owned tab. Lists with
+duplicates, malformed entries, foreign workspaces, contradictory presence or
+unresolved Runner context reject. Generic not-found errors and other backend or
+transport failures are not evidence of absence, including errors from
+`tab.close` itself. A successful targeted close or confirmed absence retires
+the handle: later close is a local success and later input rejects.
+
+Backend close acknowledgement does not establish process/descendant exit or
+writer settlement. The plugin does not supervise processes or monitor shutdown.
 
 ## Primary sources
 

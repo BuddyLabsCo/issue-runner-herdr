@@ -158,25 +158,44 @@ await test("duplicate native creation replies cannot create two owned handles fo
   );
 });
 
-await test("a known absent owned tab closes successfully and cannot receive input", async (t) => {
-  const server = await herdr([
-    ...contextSteps(),
-    createStep(),
-    {
-      method: "tab.get",
-      error: { code: "tab_not_found", message: "tab absent" },
-    },
-  ]);
-  t.after(() => server.close());
-  const plugin = await createTerminalPlugin();
-  const handle = await plugin.createTab({
-    cwd: process.cwd(),
-    env: {},
-    label: "Issue",
+for (const viaSubmission of [false, true]) {
+  await test(`a known absent owned tab closes successfully and cannot receive input (observed by submit: ${String(viaSubmission)})`, async (t) => {
+    const server = await herdr([
+      ...contextSteps(),
+      createStep(),
+      {
+        method: "tab.get",
+        params: { tab_id: "w1:t2" },
+        error: { code: "tab_not_found", message: "tab absent" },
+      },
+      {
+        method: "pane.get",
+        params: { pane_id: "w1:p1" },
+        result: { type: "pane_info", pane: caller },
+      },
+      {
+        method: "tab.list",
+        params: { workspace_id: "w1" },
+        result: { type: "tab_list", tabs: [caller] },
+      },
+    ]);
+    t.after(() => server.close());
+    const plugin = await createTerminalPlugin();
+    const handle = await plugin.createTab({
+      cwd: process.cwd(),
+      env: {},
+      label: "Issue",
+    });
+    if (viaSubmission) {
+      await assert.rejects(plugin.submitText(handle, "no"), /absent/);
+    }
+    await plugin.closeTab(handle);
+    assert.equal(server.requests.length, 6);
+    await plugin.closeTab(handle);
+    await assert.rejects(plugin.submitText(handle, "no"), /closed/);
+    assert.equal(server.requests.length, 6);
   });
-  await plugin.closeTab(handle);
-  await assert.rejects(plugin.submitText(handle, "no"), /closed/);
-});
+}
 
 await test("a lost root pane invalidates the handle without later lookup or mutation", async (t) => {
   const server = await herdr([
