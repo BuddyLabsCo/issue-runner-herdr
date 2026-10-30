@@ -220,19 +220,14 @@ export async function initialize() {
       ) {
         throw new Error("createTab requires an absolute cwd");
       }
-      if (!(await stat(options.cwd)).isDirectory()) {
-        throw new Error(`createTab cwd is not a directory: ${options.cwd}`);
-      }
-      if (
-        typeof options.label !== "string" ||
-        options.label.includes("\0") ||
-        !record(options.env)
-      ) {
+      const { cwd, label, env } = options;
+      if (typeof label !== "string" || label.includes("\0") || !record(env)) {
         throw new Error(
           "createTab requires a display label and a string environment overlay",
         );
       }
-      for (const [key, value] of Object.entries(options.env)) {
+      const overlay = Object.entries(env);
+      for (const [key, value] of overlay) {
         if (
           !key ||
           /[=\0]/.test(key) ||
@@ -245,18 +240,18 @@ export async function initialize() {
           );
         }
       }
+      if (!(await stat(cwd)).isDirectory()) {
+        throw new Error(`createTab cwd is not a directory: ${cwd}`);
+      }
       const created = await client.request(
         "tab.create",
         {
           workspace_id: caller.workspace,
-          cwd: options.cwd,
-          label: options.label,
+          cwd,
+          label,
           env: Object.fromEntries(
             new Map(
-              [
-                ...Object.entries(inherited),
-                ...Object.entries(options.env),
-              ].map((entry) => [
+              [...Object.entries(inherited), ...overlay].map((entry) => [
                 process.platform === "win32"
                   ? entry[0].toUpperCase()
                   : entry[0],
