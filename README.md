@@ -3,10 +3,10 @@
 Herdr terminal execution environment plugin for
 [issue-runner-core](https://github.com/BuddyLabsCo/issue-runner-core).
 
-The source implementation provides Core terminal contract version 1 for
+The plugin provides Core terminal contract version 1 for
 **Herdr 0.9.5**. It exports only `contractVersion = 1` and the zero-argument
-asynchronous `createTerminalPlugin()` from `src/index.ts`. Types come from the
-packaged `issue-runner-core/terminal` public contract.
+asynchronous `createTerminalPlugin()` from the ESM package `issue-runner-herdr`.
+Types come from the packaged `issue-runner-core/terminal` public contract.
 
 ## Responsibilities
 
@@ -173,14 +173,79 @@ npm ci
 npm run typecheck
 node --test tests/integration/lifecycle.test.ts
 npm run check
+npm run build
 npm test
 ```
 
 The checked-in `issue-runner-core-contract.1.tgz` is the Core contract-only
 development artifact installed by the lockfile. It is a prerequisite for
 typechecking, not a project-local product installation or a published Runner.
-The source can execute using Node's built-in TypeScript support on the supported
-runtime. Building and packing a distributable plugin is a separate ticket.
+Source tests use Node's built-in TypeScript support; the plugin build emits
+JavaScript and a public declaration that imports Core's public types.
+
+## Development artifacts
+
+Create a tarball from this checkout:
+
+```sh
+npm ci
+npm pack
+```
+
+`npm pack` builds automatically and writes
+`issue-runner-herdr-0.0.0-dev.1.tgz`. The package contains built JavaScript,
+the public `dist/index.d.ts`, and package documentation/metadata. Only the root
+module is exported; transport helpers, source files, test fixtures and a testing
+entry are not public APIs. It has no executable and no third-party runtime
+dependencies. Core is a peer dependency and supplies the declaration types.
+
+For a manual development import, create an empty temporary consumer with its
+own `package.json`, then run there, replacing both absolute artifact paths:
+
+```sh
+npm install --omit=dev --ignore-scripts "/absolute/path/issue-runner-core-contract.1.tgz" "/absolute/path/issue-runner-herdr-0.0.0-dev.1.tgz"
+node --input-type=module -e "import('issue-runner-herdr').then(m => console.log(m.contractVersion))"
+```
+
+This imports the installed artifact by package name and prints `1`; it needs no
+Herdr server until the factory is invoked. From a valid inherited Herdr context,
+consumers use the same public module:
+
+```js
+import { createTerminalPlugin } from "issue-runner-herdr";
+
+const terminal = await createTerminalPlugin();
+const tab = await terminal.createTab({
+  cwd: process.cwd(),
+  env: {},
+  label: "Issue",
+});
+await terminal.submitText(tab, "echo ready");
+await terminal.closeTab(tab);
+```
+
+Run the automated isolated-consumer check separately with:
+
+```sh
+npm run test:package
+```
+
+It packs the plugin, installs it and the supplied Core artifact offline into a
+temporary directory containing spaces, and resolves the plugin from that
+directory. The consumer has only those two packages, with installation scripts
+disabled. A development TypeScript compiler checks the installed declarations
+against `TerminalPluginModule` with no checkout types in the consumer.
+An independent consumer process checks the exports, asynchronous zero-argument
+factory, three operations, and a create/input/close lifecycle with default and
+explicit Enter against the private Herdr protocol substitute. No public test API
+is added. Temporary artifacts are removed afterward.
+
+The complete `npm test` suite includes this package check. The existing Ubuntu
+and Windows CI jobs run checks, build and the suite under Node 22.18.0/npm 11.6.2.
+These local artifact installs are development and CI verification, not an
+additional supported product installation mode.
+
+## Verification scope
 
 Tests call the real public factory and operations through a private, scripted
 local-socket substitute. They exercise actual UTF-8 JSON-line encoding,
@@ -208,7 +273,8 @@ independently, and cover malformed correlated replies, partial creation results,
 UTF-8 size limits, and backend close errors. A wall-clock partial-reply test also
 exercises the actual five-second deadline.
 The existing quality checks enforce formatting, lint, types, and architecture
-boundaries; CI is configured for Ubuntu and Windows.
+boundaries; CI is configured for Ubuntu and Windows. Implementation portability
+targets Linux, Windows and macOS under the stated Node/npm runtime.
 
 Simulated checks do not establish actual PTY delivery, Agent acceptance, exact
 conversation resume, or complete Core workflow success. Real Herdr/Agent tests
@@ -219,7 +285,15 @@ and macOS execution have not been performed here.
 The intended product installation is Core and the selected plugin installed
 globally in the same active npm environment/prefix, with Core owning the single
 `issue-runner` executable. Project-local, npx, mixed-prefix, and automatic
-installation flows are outside the agreed support policy. This source lifecycle
-does not claim an npm release, a packaged plugin, or validated joint installation.
+installation flows are outside the agreed support policy. Core owns plugin
+discovery; this package does not implement a loader or automatic installer.
+The supplied Core artifact contains the public contract only, not the Runner.
+It enables development verification before a complete Core product is available.
+
+The plugin is currently marked private and versioned as a development artifact.
+Packing and simulated consumer checks do not publish either package, reserve or
+claim availability of their candidate registry names, or validate a joint product
+installation. No registry release, real Herdr/Agent acceptance, or executed macOS
+test result is claimed.
 
 See [the protocol mapping](docs/herdr-protocol.md) for the pinned source evidence.

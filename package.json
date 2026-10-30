@@ -1,16 +1,39 @@
 {
+  "name": "issue-runner-herdr",
+  "version": "0.0.0-dev.1",
+  "private": true,
+  "description": "Herdr 0.9.5 terminal plugin for Issue Runner Core contract v1",
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/index.d.ts"
+  ],
   "engines": {
     "node": ">=22.18.0 <23",
     "npm": ">=11 <12"
   },
+  "packageManager": "npm@11.6.2",
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
     "check": "npm run format:check && npm run lint && npm run typecheck",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}\" --no-error-on-unmatched-pattern",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}\" --no-error-on-unmatched-pattern",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"tests/**/*.test.*\""
+    "test": "node --test \"tests/**/*.test.*\"",
+    "test:package": "node --test tests/package/artifact.test.ts"
+  },
+  "peerDependencies": {
+    "issue-runner-core": "*"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
