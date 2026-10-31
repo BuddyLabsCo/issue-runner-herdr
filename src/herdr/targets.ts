@@ -12,6 +12,8 @@ export interface Target {
 
 export class InvalidTargetError extends Error {}
 
+const publicNumber = "[123456789ABCDEFGHJKMNPQRSTVWXYZ0]+";
+
 const routingKeys = new Set([
   "HERDR_ENV",
   "HERDR_SOCKET_PATH",
@@ -33,11 +35,15 @@ function target(value: unknown, client: Client): Target {
   if (
     !record(value) ||
     typeof value.workspace_id !== "string" ||
-    !/^w[1-9]\d*$/.test(value.workspace_id) ||
+    !new RegExp(`^w${publicNumber}$`).test(value.workspace_id) ||
     typeof value.tab_id !== "string" ||
-    !new RegExp(`^${value.workspace_id}:t[1-9]\\d*$`).test(value.tab_id) ||
+    !new RegExp(`^${value.workspace_id}:t${publicNumber}$`).test(
+      value.tab_id,
+    ) ||
     typeof value.pane_id !== "string" ||
-    !new RegExp(`^${value.workspace_id}:p[1-9]\\d*$`).test(value.pane_id) ||
+    !new RegExp(`^${value.workspace_id}:p${publicNumber}$`).test(
+      value.pane_id,
+    ) ||
     typeof value.terminal_id !== "string" ||
     !value.terminal_id
   ) {
@@ -65,7 +71,7 @@ export async function initialize() {
     !fullyAbsolute(socketPath) ||
     socketPath.includes("\0") ||
     !callerPane ||
-    !/^w[1-9]\d*:p[1-9]\d*$/.test(callerPane)
+    !new RegExp(`^w${publicNumber}:p${publicNumber}$`).test(callerPane)
   ) {
     throw new Error(
       "Herdr host context is missing or malformed. Launch Runner inside Herdr 0.9.5 with inherited HERDR_SOCKET_PATH and HERDR_PANE_ID",
@@ -126,7 +132,9 @@ export async function initialize() {
           record(item) &&
           item.workspace_id === caller.workspace &&
           typeof item.tab_id === "string" &&
-          new RegExp(`^${caller.workspace}:t[1-9]\\d*$`).test(item.tab_id),
+          new RegExp(`^${caller.workspace}:t${publicNumber}$`).test(
+            item.tab_id,
+          ),
       )
     ) {
       throw client.invalidate("workspace tab list is malformed");

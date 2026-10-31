@@ -32,6 +32,11 @@ managed pane routing after explicit environment overrides. The plugin excludes
 inherited routing keys from its launch overlay and rejects explicit routing
 overrides so new tabs receive Herdr's own context.
 
+Herdr encodes workspace, tab, and pane numbers with the alphabet
+`123456789ABCDEFGHJKMNPQRSTVWXYZ0`. Public IDs include `wH`, `wH:t3`, and
+`wH:p3`; suffixes can contain multiple characters, and `0` is valid.
+Validation checks this alphabet and the exact workspace prefix of each tab and pane.
+
 The generic input encoder owns bracketed-paste encoding according to the target
 terminal's mode. The plugin sends the complete body using generic
 `pane.send_input` rather than raw `pane.send_text`, Agent-specific APIs, separate
@@ -76,6 +81,7 @@ writer settlement. The plugin does not supervise processes or monitor shutdown.
 
 ## Primary sources
 
+- [Public ID alphabet and encoding](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/workspace.rs)
 - [Request framing and response parsing](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/api/client.rs)
 - [Server request limits and one-request connections](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/api/server.rs)
 - [Response envelopes](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/api/schema/response.rs)
