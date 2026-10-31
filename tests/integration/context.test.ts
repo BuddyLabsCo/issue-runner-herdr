@@ -9,6 +9,36 @@ import {
   type Step,
 } from "../fixtures/herdr.ts";
 
+await test("initializes from an inherited alphabetic workspace ID", async (t) => {
+  const host = {
+    workspace_id: "wH",
+    tab_id: "wH:t3",
+    pane_id: "wH:p3",
+    terminal_id: "term_65f223ff4e88835",
+  };
+  const server = await herdr([
+    {
+      method: "pane.current",
+      params: { caller_pane_id: host.pane_id },
+      result: { type: "pane_current", pane: host },
+    },
+    {
+      method: "workspace.get",
+      params: { workspace_id: host.workspace_id },
+      result: {
+        type: "workspace_info",
+        workspace: { workspace_id: host.workspace_id },
+      },
+    },
+  ]);
+  t.after(() => server.close());
+  process.env.HERDR_WORKSPACE_ID = host.workspace_id;
+  process.env.HERDR_TAB_ID = host.tab_id;
+  process.env.HERDR_PANE_ID = host.pane_id;
+  const plugin = await createTerminalPlugin();
+  assert.equal(typeof plugin.createTab, "function");
+});
+
 await test("a stale caller rejects with actionable host context guidance before creating resources", async (t) => {
   const server = await herdr([
     {
@@ -322,8 +352,13 @@ for (const [key, value] of [
   ["HERDR_PANE_ID", undefined],
   ["HERDR_PANE_ID", ""],
   ["HERDR_PANE_ID", "Runner"],
-  ["HERDR_PANE_ID", "w0:p1"],
-  ["HERDR_PANE_ID", "w1:p0"],
+  ["HERDR_PANE_ID", "wO:p1"],
+  ["HERDR_PANE_ID", "w1:pI"],
+  ["HERDR_PANE_ID", "wh:p3"],
+  ["HERDR_PANE_ID", "wH.:p3"],
+  ["HERDR_PANE_ID", "wH:p"],
+  ["HERDR_PANE_ID", "wH:p3 "],
+  ["HERDR_PANE_ID", "wH:p3\n"],
   ["HERDR_PANE_ID", "w1:p1,w2:p1"],
   ["HERDR_PANE_ID", "w1:p1\n"],
 ] as const) {
