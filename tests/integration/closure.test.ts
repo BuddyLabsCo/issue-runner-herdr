@@ -38,6 +38,8 @@ for (const lookup of [
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Issue",
@@ -71,6 +73,8 @@ for (const context of [
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Issue",
@@ -109,6 +113,8 @@ for (const tabs of [
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Issue",
@@ -139,6 +145,8 @@ for (const lookup of [
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Issue",
@@ -173,6 +181,8 @@ for (const code of ["close_failed", "not_found", "tab_not_found"]) {
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Issue",
@@ -246,11 +256,15 @@ for (const externallyClosed of [false, true]) {
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const first = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "First",
     });
     const second = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Second",

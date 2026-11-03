@@ -10,6 +10,7 @@ results from this repository.
 | Factory | `pane.current {caller_pane_id}`, `workspace.get {workspace_id}` |
 | Create | `tab.create {workspace_id, cwd, label, env, focus: false}` |
 | Target validation | `tab.get {tab_id}`, `pane.get {pane_id}` |
+| Start / resume | The same body/Right/Enter sequence below, followed by the configured startup delay |
 | Submit body | `pane.send_input {pane_id, text, keys: []}` |
 | Submit Right | `pane.send_input {pane_id, text: "", keys: ["right"]}` after body acknowledgement |
 | Submit chord | `pane.send_input {pane_id, text: "", keys: ["enter"]}` or `["shift+enter"]` after Right acknowledgement |
@@ -61,6 +62,9 @@ success. A settled request clears its timer, destroys its socket, and leaves the
 pending-request set. Timeout or transport loss can mean a mutation already
 happened; late replies cannot trigger follow-up keys or automatic replay.
 The plugin cannot undo text or keys already acknowledged by the backend.
+A Run abort stops subsequent body/key requests and interrupts the startup delay.
+An in-flight native request keeps its finite deadline; cancellation neither closes
+the tab nor sends process termination input.
 
 Herdr's targeted `tab.close` closes the workspace when the tab is its last one.
 The plugin lists the captured workspace's tabs before closing and refuses that

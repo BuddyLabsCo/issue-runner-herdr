@@ -96,6 +96,8 @@ for (const [index, fault] of lifecycle.entries()) {
         async function run() {
           const plugin = await createTerminalPlugin();
           const handle = await plugin.createTab({
+            agent: "opaque-agent",
+            submitKey: "Enter",
             cwd: process.cwd(),
             env: {},
             label: "Issue",

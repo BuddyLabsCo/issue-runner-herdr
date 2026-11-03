@@ -87,6 +87,8 @@ for (const [workspace, number] of [
     process.env.HERDR_PANE_ID = caller.pane_id;
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Encoded IDs",

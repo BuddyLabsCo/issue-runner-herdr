@@ -16,7 +16,7 @@ const contract: TerminalPluginModule = pluginModule;
 await test("initializes from the caller and creates one owned interactive tab", async (t) => {
   const server = await herdr([...contextSteps(), createStep()]);
   t.after(() => server.close());
-  const plugin = await contract.createTerminalPlugin();
+  const plugin = await contract.createTerminalPlugin({});
   assert.equal(contract.contractVersion, 1);
   assert.deepEqual(Object.keys(pluginModule).sort(), [
     "contractVersion",
@@ -26,11 +26,15 @@ await test("initializes from the caller and creates one owned interactive tab", 
   assert.deepEqual(Object.keys(plugin).sort(), [
     "closeTab",
     "createTab",
+    "resume",
+    "start",
     "submitText",
   ]);
   // Inherited workspace/focus changes must not redirect the initialized plugin.
   process.env.HERDR_WORKSPACE_ID = "w9";
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: { ISSUE_RUNNER_TEST: "overlay" },
     label: "Issue 4",
@@ -70,8 +74,10 @@ for (const { overlay, windowsEntries, caseSensitiveEntries } of [
     t.after(() => server.close());
     process.env.ReviewOverlay = "inherited";
     process.env.ReviewInheritedOnly = "retained";
-    const plugin = await contract.createTerminalPlugin();
+    const plugin = await contract.createTerminalPlugin({});
     await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: Object.freeze(overlay),
       label: "Environment overlay",
@@ -96,8 +102,10 @@ for (const explicit of [false, true]) {
     delete process.env.fish_handle_reflow;
     process.env[explicit ? "FISH_HANDLE_REFLOW" : "fish_handle_reflow"] =
       "inherited";
-    const plugin = await contract.createTerminalPlugin();
+    const plugin = await contract.createTerminalPlugin({});
     await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: explicit ? { fish_handle_reflow: "0" } : {},
       label: "Fish environment",
@@ -173,13 +181,17 @@ await test("independent handles can submit concurrently without target crossover
     return step;
   });
   t.after(() => server.close());
-  const plugin = await contract.createTerminalPlugin();
+  const plugin = await contract.createTerminalPlugin({});
   const first = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "First",
   });
   const second = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Second",
@@ -222,8 +234,10 @@ await test("completes the public lifecycle and closes only the owned native tab"
     },
   ]);
   t.after(() => server.close());
-  const plugin = await contract.createTerminalPlugin();
+  const plugin = await contract.createTerminalPlugin({});
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
@@ -251,8 +265,10 @@ await test("submits complete LF text then Right and the selected chord to the re
     ...inputSteps(text, "shift+enter"),
   ]);
   t.after(() => server.close());
-  const plugin = await contract.createTerminalPlugin();
+  const plugin = await contract.createTerminalPlugin({});
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",

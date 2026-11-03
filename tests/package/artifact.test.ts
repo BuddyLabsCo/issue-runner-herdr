@@ -24,7 +24,7 @@ import {
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../../", import.meta.url));
 
-await test("installed artifact conforms to Core and completes an Enter lifecycle in a consumer with spaces", async (t) => {
+await test("installed artifact conforms to Core composite startup in a consumer with spaces", async (t) => {
   const consumer = await mkdtemp(join(tmpdir(), "herdr package consumer "));
   t.after(() => rm(consumer, { recursive: true, force: true }));
   const artifacts = join(consumer, "artifacts");
@@ -65,7 +65,6 @@ await test("installed artifact conforms to Core and completes an Enter lifecycle
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
-      "--offline",
       join(root, "issue-runner-core-contract.1.tgz"),
       join(artifacts, artifact.filename),
     ],
@@ -76,7 +75,7 @@ await test("installed artifact conforms to Core and completes an Enter lifecycle
     (await readdir(join(consumer, "node_modules")))
       .filter((name) => !name.startsWith("."))
       .sort(),
-    ["issue-runner-core", "issue-runner-herdr"],
+    ["cac", "issue-runner-core", "issue-runner-herdr", "yaml"],
     "The consumer has no checkout development dependencies",
   );
   const manifest = JSON.parse(
@@ -92,10 +91,14 @@ import type { TerminalPlugin, TerminalPluginModule } from "issue-runner-core/ter
 import * as plugin from "issue-runner-herdr";
 const contract: TerminalPluginModule = plugin;
 const version: 1 = plugin.contractVersion;
-const args: Parameters<typeof plugin.createTerminalPlugin> = [];
-const initialized: Promise<TerminalPlugin> = contract.createTerminalPlugin(...args);
-const tab = await (await initialized).createTab({ cwd: "/unused", env: {}, label: "Types only" });
-await (await initialized).submitText(tab, "echo done");
+const args: Parameters<typeof plugin.createTerminalPlugin> = [{ agentStartDelay: 0, enhancements: { retained: true } }];
+const initialized: Promise<TerminalPlugin> = contract.createTerminalPlugin(args[0]);
+const tab = await (await initialized).createTab({ cwd: "/unused", env: {}, label: "Types only", agent: "opaque", submitKey: "Shift+Enter", signal: new AbortController().signal });
+const terminal = await initialized;
+const started: string | undefined = await terminal.start(tab, "agent --configured");
+const resumed: string = await terminal.resume(tab, "agent resume exact", "exact");
+await terminal.submitText(tab, "echo done", undefined, "/handoff.json", "recovery");
+void started; void resumed;
 await (await initialized).closeTab(tab);
 void version;
 `,
@@ -133,23 +136,53 @@ assert.equal(plugin.createTerminalPlugin.length, 0);
 for (const entry of ["src/index.ts", "dist/index.js", "dist/herdr/client.js", "terminal/testing"]) {
   await assert.rejects(import("issue-runner-herdr/" + entry), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });
 }
-const initialized = plugin.createTerminalPlugin();
+const initialized = plugin.createTerminalPlugin({ agentStartDelay: 0, enhancements: { privateSetting: ["ignored"] } });
 assert.ok(initialized instanceof Promise);
 const terminal = await initialized;
-assert.deepEqual(Object.keys(terminal).sort(), ["closeTab", "createTab", "submitText"]);
-const tab = await terminal.createTab({ cwd: process.cwd(), env: {}, label: "Packaged lifecycle" });
-await terminal.submitText(tab, "echo packaged");
+assert.deepEqual(Object.keys(terminal).sort(), ["closeTab", "createTab", "resume", "start", "submitText"]);
+const tab = await terminal.createTab({ cwd: process.cwd(), env: {}, label: "Packaged lifecycle", agent: "opaque", submitKey: "Shift+Enter" });
+assert.equal(await terminal.start(tab, "agent --configured"), undefined);
+assert.equal(await terminal.start(tab, "agent --configured"), undefined);
+await terminal.submitText(tab, "echo packaged", undefined, "/exact/handoff.json", "Core recovery wording");
 await terminal.submitText(tab, "echo explicit", "Enter");
 await terminal.closeTab(tab);
+const resumer = await plugin.createTerminalPlugin({ agentStartDelay: 0 });
+const resumed = await resumer.createTab({ cwd: process.cwd(), env: {}, label: "Packaged resume", agent: "opaque", submitKey: "Enter" });
+assert.equal(await resumer.resume(resumed, "agent resume 'saved ref'", "saved ref"), "saved ref");
+assert.equal(await resumer.resume(resumed, "agent resume 'saved ref'", "saved ref"), "saved ref");
+await resumer.closeTab(resumed);
 `,
   );
   const server = await herdr([
     ...contextSteps(),
     createStep(),
     ...targetSteps(),
+    ...inputSteps("agent --configured"),
+    ...targetSteps(),
     ...inputSteps("echo packaged"),
     ...targetSteps(),
     ...inputSteps("echo explicit"),
+    ...targetSteps(),
+    {
+      method: "tab.list",
+      params: { workspace_id: "w1" },
+      result: {
+        type: "tab_list",
+        tabs: [
+          { workspace_id: "w1", tab_id: "w1:t1" },
+          { workspace_id: "w1", tab_id: "w1:t2" },
+        ],
+      },
+    },
+    {
+      method: "tab.close",
+      params: { tab_id: "w1:t2" },
+      result: { type: "ok" },
+    },
+    ...contextSteps(),
+    createStep(),
+    ...targetSteps(),
+    ...inputSteps("agent resume 'saved ref'"),
     ...targetSteps(),
     {
       method: "tab.list",

@@ -22,6 +22,8 @@ for (const submitKey of ["enter", "shift+enter"]) {
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Issue",
@@ -49,6 +51,8 @@ for (const command of [
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Fresh command tab",
