@@ -217,8 +217,14 @@ export async function initialize() {
       }
       return true;
     },
-    async submit(owned: Target, text: string, key: string) {
+    async submit(
+      owned: Target,
+      text: string,
+      key: string,
+      signal?: AbortSignal,
+    ) {
       try {
+        signal?.throwIfAborted();
         await client.request(
           "pane.send_input",
           {
@@ -229,6 +235,7 @@ export async function initialize() {
           "ok",
         );
         for (const chord of ["right", key]) {
+          signal?.throwIfAborted();
           await client.request(
             "pane.send_input",
             { pane_id: owned.pane, text: "", keys: [chord] },

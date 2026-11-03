@@ -24,7 +24,13 @@ await test("reports tab creation failures instead of claiming a usable handle", 
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   await assert.rejects(
-    plugin.createTab({ cwd: process.cwd(), env: {}, label: "Issue" }),
+    plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
+      cwd: process.cwd(),
+      env: {},
+      label: "Issue",
+    }),
     /tab.create: tab_create_failed: shell executable unavailable/,
   );
 });
@@ -43,6 +49,8 @@ await test("body failure rejects before Right or Enter without replaying the tex
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
@@ -78,6 +86,8 @@ for (const [index, name] of [
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Issue",
@@ -102,6 +112,8 @@ await test("ordinary lookup failure is not treated as known absence", async (t) 
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
@@ -125,6 +137,8 @@ for (const fault of [
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Issue",
@@ -140,7 +154,13 @@ for (const fault of [
     );
     await assert.rejects(plugin.closeTab(handle), /invalidated/);
     await assert.rejects(
-      plugin.createTab({ cwd: process.cwd(), env: {}, label: "Again" }),
+      plugin.createTab({
+        agent: "opaque-agent",
+        submitKey: "Enter",
+        cwd: process.cwd(),
+        env: {},
+        label: "Again",
+      }),
       /invalidated/,
     );
     assert.equal(server.requests.length, count);
@@ -171,6 +191,8 @@ for (const envelope of [
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Issue",
@@ -194,6 +216,8 @@ await test("an oversized UTF-8 body rejects with the encoding limit before any i
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
@@ -227,6 +251,8 @@ await test("a backend close rejection reports its method and reason without repl
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
@@ -251,6 +277,8 @@ await test(
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Issue",

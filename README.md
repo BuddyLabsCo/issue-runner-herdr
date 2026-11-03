@@ -4,21 +4,25 @@ Herdr terminal execution environment plugin for
 [issue-runner-core](https://github.com/BuddyLabsCo/issue-runner-core).
 
 The plugin provides Core terminal contract version 1 for
-**Herdr 0.9.5**. It exports only `contractVersion = 1` and the zero-argument
-asynchronous `createTerminalPlugin()` from the ESM package `issue-runner-herdr`.
+**Herdr 0.9.5**. It exports only `contractVersion = 1` and the asynchronous
+`createTerminalPlugin(config?)` from the ESM package `issue-runner-herdr`.
 Types come from the packaged `issue-runner-core/terminal` public contract.
 
 ## Responsibilities
 
-The initialized plugin provides three operations:
+The initialized plugin provides five operations:
 
-- `createTab({ cwd, env, label })` creates one new native tab with an interactive
-  shell and records its root pane. `cwd` must be an existing absolute directory.
+- `createTab({ cwd, env, label, agent, submitKey, signal? })` creates one native
+  tab with an interactive shell and records its root pane. `cwd` must be an existing absolute directory.
   The explicit string environment overlay is applied over Runner's environment
   captured at initialization; Herdr supplies the new pane's routing identities.
   Overlay keys reserved for Herdr routing are rejected.
-- `submitText(handle, text, submitKey?)` sends the complete canonical-LF body in
-  one generic `pane.send_input` request, then sends Right and the selected
+- `start(handle, command)` submits the unchanged command with Enter, waits the
+  configured startup delay, and returns `undefined`. Core can then Probe for identity.
+- `resume(handle, command, sessionref)` submits the unchanged command with Enter,
+  waits the same delay, and returns the exact supplied ref without another Probe.
+- `submitText(handle, text, submitKey?, expectedFile?, recoveryText?)` sends the
+  complete canonical-LF body in one generic `pane.send_input` request, then sends Right and the selected
   logical chord in separate requests, awaiting acknowledgement at each step.
   Omission defaults to Enter; `"enter"` and `"shift+enter"` are
   supported case-insensitively, including `"Enter"` and `"Shift+Enter"`.
@@ -38,8 +42,10 @@ generic not-found errors, transport errors and ordinary backend close failures
 reject rather than claim closure. A handle established to be closed or absent
 cannot receive later input; other owned handles remain usable.
 
-Core owns Agent configuration, complete start/resume shell-command text, the
-startup delay, prompts, completion validation, workflow, retries, and recovery.
+Core owns Agent configuration, complete start/resume shell-command text, prompts,
+handoff acceptance, workflow retries, and workflow recovery. Herdr owns startup
+submission and timing. Optional enhancement hosting and business-turn recovery
+are separate work; this version runs without loading an enhancement.
 Creation does not launch an Agent or prove shell readiness. Submission success
 reports backend acknowledgement, not Agent acceptance. Closing invokes the
 targeted backend operation; it does not prove process or descendant exit or
@@ -62,14 +68,41 @@ keys; a failed or uncertain Right prevents the final chord. A failed final
 chord rejects without resending the body or Right. The plugin does not rewrite
 LF to CR or send each line separately.
 
-Core supplies the complete configured start command, or a complete resume
-command for a fresh tab, through ordinary `submitText(handle, command)` with
-Enter. A later prompt is a separate call such as
-`submitText(handle, prompt, "shift+enter")`. Core chooses each call's chord;
-the plugin does not infer it from the command or Agent brand, remember a previous
-call's selection, merge command and prompt, or add startup delays. Core retains
-command construction, literal session-reference replacement, startup timing,
-Probe/result validation, and recovery policy.
+Core supplies complete commands to `start` or `resume` for a fresh tab. Herdr
+always uses Enter for commands, regardless of the Agent's creation-time key.
+Later prompts use `submitText(handle, prompt, "shift+enter")` or an omitted key
+for Enter. The optional `expectedFile` and `recoveryText` arguments are accepted
+without changing base submission. Herdr performs no identity Probe.
+
+## Startup configuration and cancellation
+
+Pass the complete `terminalPlugins` object to `createTerminalPlugin`. Omission
+or `{}` defaults `agentStartDelay` to ten seconds and `enhancements` to `{}`:
+
+```js
+const terminal = await createTerminalPlugin({
+  agentStartDelay: 10,
+  enhancements: { retainedPrivateSetting: true },
+});
+```
+
+`agentStartDelay` accepts finite non-negative seconds, including zero and
+fractions, up to Node's timer limit of 2,147,483,647 milliseconds. `enhancements`
+must be an object. Its private contents are ignored during base execution.
+Creation requires a nonempty opaque `agent` string and a supported `submitKey`.
+Herdr does not parse Agent names or command text.
+
+The delay starts after body, Right, and Enter have all been acknowledged.
+Concurrent and repeated startup calls on the same owned tab reuse that startup;
+they never resend a successfully submitted command or create another terminal.
+Ordinary submission errors reject unchanged. Core controls explicit retries;
+transport loss retains the existing context invalidation and native I/O bounds.
+
+Pass the Run's `AbortSignal` at creation to cancel startup. Abort interrupts the
+startup wait and rejects later input. If a native request is already in flight,
+it retains its five-second bound, but no subsequent input step is sent.
+Already delivered input cannot be retracted. Abort preserves the tab and Agent;
+`closeTab` remains available for explicit closure.
 
 ## Working context
 
@@ -219,8 +252,12 @@ const tab = await terminal.createTab({
   cwd: process.cwd(),
   env: {},
   label: "Issue",
+  agent: "configured-agent",
+  submitKey: "Shift+Enter",
 });
-await terminal.submitText(tab, "echo ready");
+const sessionref = await terminal.start(tab, "configured-agent-command");
+// Core performs its identity Probe when sessionref is undefined.
+await terminal.submitText(tab, "Complete the assigned task", "Shift+Enter");
 await terminal.closeTab(tab);
 ```
 
@@ -232,13 +269,13 @@ npm run test:package
 
 It packs the plugin, installs it and the supplied Core artifact offline into a
 temporary directory containing spaces, and resolves the plugin from that
-directory. The consumer has only those two packages, with installation scripts
-disabled. A development TypeScript compiler checks the installed declarations
-against `TerminalPluginModule` with no checkout types in the consumer.
-An independent consumer process checks the exports, asynchronous zero-argument
-factory, three operations, and a create/input/close lifecycle with default and
-explicit Enter against the private Herdr protocol substitute. No public test API
-is added. Temporary artifacts are removed afterward.
+directory. The consumer installs only these artifacts and Core's transitive
+dependencies, with installation scripts disabled and no enhancement installed.
+A development TypeScript compiler checks the installed declarations against `TerminalPluginModule` with no checkout types in the consumer.
+An independent consumer process checks the exports, configured asynchronous
+factory, all five operations, start/resume refs, and five-argument submission
+with default and explicit Enter against the private Herdr protocol substitute.
+No public test API is added. Temporary artifacts are removed afterward.
 
 The complete `npm test` suite includes this package check. The existing Ubuntu
 and Windows CI jobs run checks, build and the suite under Node 22.18.0/npm 11.6.2.
@@ -252,8 +289,9 @@ local-socket substitute. They exercise actual UTF-8 JSON-line encoding,
 caller-context validation, creation, LF/CJK/literal text, chord ordering, owned
 targeting, concurrent handles, closure, failures, and finite timeout behavior.
 Focused unit tests cover chord defaulting, case-insensitive mapping, and rejection.
-Submission tests verify exact protocol requests for start/resume commands in
-fresh tabs and subsequent prompts with independently selected chords.
+Startup tests cover unchanged commands, concurrent and repeated calls, exact refs,
+default and explicit delays after submission, and cancellation between input steps.
+Submission tests check subsequent prompts with independently selected chords.
 Isolation tests hold scripted replies to force out-of-order creation and
 overlapping submit/close operations, and use separate socket substitutes with
 overlapping native IDs to check instance ownership.

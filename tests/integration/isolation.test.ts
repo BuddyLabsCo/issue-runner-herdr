@@ -72,13 +72,21 @@ await test("out-of-order creation replies keep each handle associated with its o
   const plugin = await createTerminalPlugin();
   let firstCompleted = false;
   const firstPending = plugin
-    .createTab({ cwd: process.cwd(), env: {}, label: "First" })
+    .createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
+      cwd: process.cwd(),
+      env: {},
+      label: "First",
+    })
     .then((handle) => {
       firstCompleted = true;
       return handle;
     });
   await firstRequested;
   const second = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Second",
@@ -142,11 +150,15 @@ await test("closing one tab overlaps another tab's submission without following 
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   const first = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "First",
   });
   const second = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Second",
@@ -177,6 +189,8 @@ await test("opaque handles stay instance-owned across backends with overlapping 
   t.after(() => firstServer.close());
   const first = await createTerminalPlugin();
   const firstHandle = await first.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "First backend",
@@ -199,6 +213,8 @@ await test("opaque handles stay instance-owned across backends with overlapping 
   try {
     const second = await createTerminalPlugin();
     const secondHandle = await second.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Second backend",

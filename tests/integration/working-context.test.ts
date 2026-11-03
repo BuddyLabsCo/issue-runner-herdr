@@ -20,6 +20,8 @@ await test("creation keeps the requested context while checking the directory", 
   const plugin = await createTerminalPlugin();
   const overlay = { ISSUE_RUNNER_CONTEXT: "requested" };
   const options: CreateTabOptions = {
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     label: "Requested issue",
     env: overlay,
@@ -61,7 +63,13 @@ await test("creation preserves portable paths, labels, and literal environment v
     HERDR_CUSTOM: "ordinary variable",
   });
   const label = 'Issue 6 \u4e2d\u6587 \ud83d\ude80 "quoted" $HOME & \\';
-  await plugin.createTab({ cwd, label, env: overlay });
+  await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
+    cwd,
+    label,
+    env: overlay,
+  });
   const params = server.requests[2]?.params;
   assert.equal(params?.cwd, cwd);
   assert.equal(params.label, label);
@@ -95,16 +103,30 @@ await test("unusable working directories reject before tab creation", async (t) 
   const plugin = await createTerminalPlugin();
   for (const cwd of ["", ".", "relative/path", directory + "\0"]) {
     await assert.rejects(
-      plugin.createTab({ cwd, env: {}, label: "Issue" }),
+      plugin.createTab({
+        agent: "opaque-agent",
+        submitKey: "Enter",
+        cwd,
+        env: {},
+        label: "Issue",
+      }),
       /absolute cwd/,
     );
   }
   await assert.rejects(
-    plugin.createTab({ cwd: file, env: {}, label: "Issue" }),
+    plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
+      cwd: file,
+      env: {},
+      label: "Issue",
+    }),
     /cwd is not a directory/,
   );
   await assert.rejects(
     plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: join(directory, "missing"),
       env: {},
       label: "Issue",
@@ -130,6 +152,8 @@ await test("rejects all Herdr routing overlays, including case variants", async 
   ]) {
     await assert.rejects(
       plugin.createTab({
+        agent: "opaque-agent",
+        submitKey: "Enter",
         cwd: process.cwd(),
         env: { [key]: process.env[key] ?? "" },
         label: "Issue",
@@ -156,7 +180,12 @@ await test("rejects invalid labels and environment values before tab creation", 
     { label: "Issue", env: { KEY: 42 } },
   ]) {
     const options = JSON.parse(
-      JSON.stringify({ cwd: process.cwd(), ...invalid }),
+      JSON.stringify({
+        agent: "opaque-agent",
+        submitKey: "Enter",
+        cwd: process.cwd(),
+        ...invalid,
+      }),
     ) as CreateTabOptions;
     await assert.rejects(plugin.createTab(options), /label|environment/);
   }
@@ -181,14 +210,26 @@ await test(
     const plugin = await createTerminalPlugin();
     for (const path of ["\\", "/", "C:", "C:relative", "\\\\server"]) {
       await assert.rejects(
-        plugin.createTab({ cwd: path, env: {}, label: "Invalid Windows path" }),
+        plugin.createTab({
+          agent: "opaque-agent",
+          submitKey: "Enter",
+          cwd: path,
+          env: {},
+          label: "Invalid Windows path",
+        }),
         /absolute cwd/,
       );
     }
     const paths = [cwd.replaceAll("\\", "/"), toNamespacedPath(cwd)];
     for (const path of paths) {
       const current = path === paths[0] ? plugin : await createTerminalPlugin();
-      await current.createTab({ cwd: path, env: {}, label: "Windows path" });
+      await current.createTab({
+        agent: "opaque-agent",
+        submitKey: "Enter",
+        cwd: path,
+        env: {},
+        label: "Windows path",
+      });
       assert.equal(server.requests.at(-1)?.params.cwd, path);
     }
   },
@@ -207,6 +248,8 @@ for (const error of [
     const plugin = await createTerminalPlugin();
     await assert.rejects(
       plugin.createTab({
+        agent: "opaque-agent",
+        submitKey: "Enter",
         cwd: process.cwd(),
         env: { ISSUE_CONTEXT_EMPTY: "" },
         label: "Issue",
@@ -247,7 +290,13 @@ for (const [description, result] of [
     ]);
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
-    const options = { cwd: process.cwd(), env: {}, label: "Issue" };
+    const options = {
+      agent: "opaque-agent",
+      submitKey: "Enter",
+      cwd: process.cwd(),
+      env: {},
+      label: "Issue",
+    };
     await assert.rejects(
       plugin.createTab(options),
       /invalidated.*identity|invalidated.*association/,

@@ -325,7 +325,13 @@ await test("caller-aware lookup and later creations keep the queried workspace d
     tab_id: "w2:t2",
     pane_id: "w2:p2",
   };
-  await plugin.createTab({ cwd: process.cwd(), env: {}, label: "Project" });
+  await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
+    cwd: process.cwd(),
+    env: {},
+    label: "Project",
+  });
   focused = {
     ...caller,
     workspace_id: "w3",
@@ -337,7 +343,13 @@ await test("caller-aware lookup and later creations keep the queried workspace d
   process.env.HERDR_PANE_ID = focused.pane_id;
   process.env.HERDR_WORKSPACE_ID = focused.workspace_id;
   process.env.HERDR_TAB_ID = "w3:t3";
-  await plugin.createTab({ cwd: process.cwd(), env: {}, label: "Project" });
+  await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
+    cwd: process.cwd(),
+    env: {},
+    label: "Project",
+  });
   assert.equal(creations, 2);
   assert.deepEqual(
     server.requests.map((request) => request.method),

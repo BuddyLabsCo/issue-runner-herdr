@@ -3,7 +3,7 @@
 ```text
 /
 |-- src/                       # Public exports and plugin assembly
-|   |-- plugin/                # createTab, submitText, closeTab; validation, ordering, handle ownership
+|   |-- plugin/                # Configuration, create/start/resume/submit/close; validation, ordering, ownership
 |   `-- herdr/                 # Host context, native targets, protocol encoding, transport, timeouts
 |-- tests/
 |   |-- unit/                  # Validation and key mapping
@@ -22,6 +22,8 @@ public module -> plugin/ -> herdr/ -> Herdr server
 
 - Public exports: `contractVersion` and `createTerminalPlugin`; consume types from `issue-runner-core/terminal`.
 - Keep handles and target associations inside each plugin instance; keep transport and test seams private.
-- Core owns workflow, Agent configuration, retries and recovery; this repository owns terminal operations.
+- Core owns workflow, Agent configuration, retries, handoff acceptance and workflow recovery.
+- The plugin layer owns startup progress, delay and Run cancellation per tab; native I/O retains finite bounds.
+- Optional enhancements own their business-turn recovery policy; enhancement hosting is separate work.
 - Keep helpers beside their owner. Add directories when needed, not as empty scaffolding.
 - Run `npm run check` for formatting, lint and types; `npm test` checks the quality rules.

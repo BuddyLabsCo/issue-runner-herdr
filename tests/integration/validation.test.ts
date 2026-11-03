@@ -62,11 +62,19 @@ await test("validates cwd, environment, and chords before backend mutation", asy
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   await assert.rejects(
-    plugin.createTab({ cwd: "relative", env: {}, label: "Issue" }),
+    plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
+      cwd: "relative",
+      env: {},
+      label: "Issue",
+    }),
     /absolute cwd/,
   );
   await assert.rejects(
     plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: { "BAD=KEY": "value" },
       label: "Issue",
@@ -75,6 +83,8 @@ await test("validates cwd, environment, and chords before backend mutation", asy
   );
   await assert.rejects(
     plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: { HERDR_SOCKET_PATH: "elsewhere" },
       label: "Issue",
@@ -82,6 +92,8 @@ await test("validates cwd, environment, and chords before backend mutation", asy
     /reserved environment/,
   );
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
@@ -120,7 +132,13 @@ await test(
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     await assert.rejects(
-      plugin.createTab({ cwd: "\\", env: {}, label: "Issue" }),
+      plugin.createTab({
+        agent: "opaque-agent",
+        submitKey: "Enter",
+        cwd: "\\",
+        env: {},
+        label: "Issue",
+      }),
       /absolute cwd/,
     );
     assert.equal(server.requests.length, 2);
@@ -136,6 +154,8 @@ await test("foreign handles reject before target queries or mutations", async (t
   t.after(() => server.close());
   const first = await createTerminalPlugin();
   const handle = await first.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "First",
@@ -144,6 +164,8 @@ await test("foreign handles reject before target queries or mutations", async (t
   for (const foreign of [handle, {}, Object.freeze({})]) {
     await assert.rejects(second.submitText(foreign, "no"), /foreign/);
     await assert.rejects(second.closeTab(foreign), /foreign/);
+    await assert.rejects(second.start(foreign, "no"), /foreign/);
+    await assert.rejects(second.resume(foreign, "no", "exact"), /foreign/);
   }
 });
 
@@ -151,9 +173,21 @@ await test("duplicate native creation replies cannot create two owned handles fo
   const server = await herdr([...contextSteps(), createStep(), createStep()]);
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
-  await plugin.createTab({ cwd: process.cwd(), env: {}, label: "First" });
+  await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
+    cwd: process.cwd(),
+    env: {},
+    label: "First",
+  });
   await assert.rejects(
-    plugin.createTab({ cwd: process.cwd(), env: {}, label: "Second" }),
+    plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
+      cwd: process.cwd(),
+      env: {},
+      label: "Second",
+    }),
     /reused|duplicate/i,
   );
 });
@@ -182,6 +216,8 @@ for (const viaSubmission of [false, true]) {
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
     const handle = await plugin.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "Issue",
@@ -193,6 +229,8 @@ for (const viaSubmission of [false, true]) {
     assert.equal(server.requests.length, 6);
     await plugin.closeTab(handle);
     await assert.rejects(plugin.submitText(handle, "no"), /closed/);
+    await assert.rejects(plugin.start(handle, "no"), /closed/);
+    await assert.rejects(plugin.resume(handle, "no", "exact"), /closed/);
     assert.equal(server.requests.length, 6);
   });
 }
@@ -210,6 +248,8 @@ await test("a lost root pane invalidates the handle without later lookup or muta
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
@@ -235,6 +275,8 @@ await test("a reused native target rejects before input or close", async (t) => 
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
@@ -259,6 +301,8 @@ await test("target loss during input invalidates the handle without another disp
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
@@ -279,6 +323,8 @@ await test("refuses to close the last tab and implicitly destroy its workspace",
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",

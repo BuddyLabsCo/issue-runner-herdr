@@ -33,7 +33,7 @@
     "test:package": "node --test tests/package/artifact.test.ts"
   },
   "peerDependencies": {
-    "issue-runner-core": "*"
+    "issue-runner-core": "0.0.0-contract.1"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

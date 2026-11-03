@@ -53,11 +53,15 @@ await test("detected connection loss rejects another handle's pending input with
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   const first = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "First",
   });
   const second = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Second",
@@ -110,11 +114,15 @@ await test("a scripted restart reusing native identities cannot authorize old ha
   t.after(() => server.close());
   const previous = await createTerminalPlugin();
   const first = await previous.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "First",
   });
   const second = await previous.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Second",
@@ -125,7 +133,13 @@ await test("a scripted restart reusing native identities cannot authorize old ha
   );
   const lostCount = server.requests.length;
   await assert.rejects(
-    previous.createTab({ cwd: process.cwd(), env: {}, label: "No reconnect" }),
+    previous.createTab({
+      agent: "opaque-agent",
+      submitKey: "Enter",
+      cwd: process.cwd(),
+      env: {},
+      label: "No reconnect",
+    }),
     /invalidated/,
   );
   for (const handle of [first, second]) {
@@ -137,6 +151,8 @@ await test("a scripted restart reusing native identities cannot authorize old ha
   // The replacement backend issues the same tab, pane, and terminal IDs.
   const fresh = await createTerminalPlugin();
   const replacement = await fresh.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Replacement",
@@ -191,6 +207,8 @@ await test("ordinary backend rejection leaves the owned association usable for l
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
   const handle = await plugin.createTab({
+    agent: "opaque-agent",
+    submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
