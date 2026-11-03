@@ -14,6 +14,8 @@ results from this repository.
 | Submit body | `pane.send_input {pane_id, text, keys: []}` |
 | Submit Right | `pane.send_input {pane_id, text: "", keys: ["right"]}` after body acknowledgement |
 | Submit chord | `pane.send_input {pane_id, text: "", keys: ["enter"]}` or `["shift+enter"]` after Right acknowledgement |
+| Host read | Target validation, then `pane.read {pane_id, source: "visible", format: "text", strip_ansi: true}` |
+| Host logical keys | Target validation, then one ordered `pane.send_input {pane_id, text: "", keys: [chord]}` per chord, without Right |
 | Close | Target validation, `tab.list {workspace_id}`, `tab.close {tab_id}` |
 | Confirm absent after `tab.get` returns `tab_not_found` | `pane.get {pane_id: captured Runner pane}`, `tab.list {workspace_id}`; no close request |
 
@@ -65,6 +67,12 @@ The plugin cannot undo text or keys already acknowledged by the backend.
 A Run abort stops subsequent body/key requests and interrupts the startup delay.
 An in-flight native request keeps its finite deadline; cancellation neither closes
 the tab nor sends process termination input.
+
+Enhancement Host reads request the visible text snapshot, never recent output or ANSI format.
+The adapter validates the returned pane, tab, workspace, source, format, and text before returning it.
+Host keys validate the entire array before querying or sending. Shift+Enter stays one chord.
+The adapter checks cancellation before every key; abort prevents remaining input after an in-flight request settles.
+Enhancement stop precedes native close and does not send any native process-termination request.
 
 Herdr's targeted `tab.close` closes the workspace when the tab is its last one.
 The plugin lists the captured workspace's tabs before closing and refuses that

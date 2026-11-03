@@ -14,6 +14,7 @@ await test("rejects imports across architecture boundaries", async () => {
     ["src/plugin/operations.mjs", "node:fs/promises"],
     ["src/plugin/operations.mjs", "fs"],
     ["src/plugin/operations.mjs", "node:net"],
+    ["src/plugin/discovery.ts", "node:net"],
     ["src/plugin/operations.mjs", "child_process"],
     ["src/index.mjs", "issue-runner-core/dist/terminal.js"],
   ];
@@ -35,6 +36,7 @@ await test("allows dependencies in the intended direction", async () => {
     ["src/index.mjs", "./plugin/operations.mjs"],
     ["src/plugin/operations.mjs", "../herdr/client.mjs"],
     ["src/plugin/operations.mjs", "node:path"],
+    ["src/plugin/discovery.ts", "node:fs/promises"],
     ["src/herdr/client.mjs", "node:net"],
     ["src/index.mjs", "issue-runner-core/terminal"],
     ["tests/integration/plugin.mjs", "../../src/index.mjs"],

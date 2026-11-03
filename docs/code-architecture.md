@@ -3,7 +3,7 @@
 ```text
 /
 |-- src/                       # Public exports and plugin assembly
-|   |-- plugin/                # Configuration, create/start/resume/submit/close; validation, ordering, ownership
+|   |-- plugin/                # Configuration, discovery, enhancement lifecycle; tab ownership and operation ordering
 |   `-- herdr/                 # Host context, native targets, protocol encoding, transport, timeouts
 |-- tests/
 |   |-- unit/                  # Validation and key mapping
@@ -21,9 +21,11 @@ public module -> plugin/ -> herdr/ -> Herdr server
 ```
 
 - Public exports: `contractVersion` and `createTerminalPlugin`; consume types from `issue-runner-core/terminal`.
-- Keep handles and target associations inside each plugin instance; keep transport and test seams private.
+- Keep handles, target associations, and each Tab's enhancement inside its plugin instance; keep transport and test seams private.
+- Discover optional enhancements only beside the globally installed plugin. Filesystem I/O for package discovery belongs in `plugin/discovery.ts`; native I/O belongs in `herdr/`.
 - Core owns workflow, Agent configuration, retries, handoff acceptance and workflow recovery.
 - The plugin layer owns startup progress, delay and Run cancellation per tab; native I/O retains finite bounds.
-- Optional enhancements own their business-turn recovery policy; enhancement hosting is separate work.
+- Optional enhancements own business-turn recovery decisions; Herdr transports their requested input through Core's bound Host contract.
+- Await enhancement preflight before returning a created Tab. Abort stops automatic activity while retaining the terminal; explicit close awaits enhancement stop before native close.
 - Keep helpers beside their owner. Add directories when needed, not as empty scaffolding.
 - Run `npm run check` for formatting, lint and types; `npm test` checks the quality rules.

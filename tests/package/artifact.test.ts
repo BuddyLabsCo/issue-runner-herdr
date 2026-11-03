@@ -87,7 +87,7 @@ await test("installed artifact conforms to Core composite startup in a consumer 
   await writeFile(
     join(consumer, "contract.mts"),
     `
-import type { TerminalPlugin, TerminalPluginModule } from "issue-runner-core/terminal";
+import type { EnhancementModule, TerminalPlugin, TerminalPluginModule } from "issue-runner-core/terminal";
 import * as plugin from "issue-runner-herdr";
 const contract: TerminalPluginModule = plugin;
 const version: 1 = plugin.contractVersion;
@@ -101,6 +101,20 @@ await terminal.submitText(tab, "echo done", undefined, "/handoff.json", "recover
 void started; void resumed;
 await (await initialized).closeTab(tab);
 void version;
+const enhancement: EnhancementModule = {
+  contractVersion: 1,
+  async createEnhancement(host, context, config) {
+    const cwd: string = context.cwd;
+    const env: Readonly<Record<string, string>> = context.env;
+    const screen: string = await host.read();
+    await host.submitText(screen);
+    await host.sendKeys(["Escape", "Shift+Enter"]);
+    await host.requestRecovery();
+    void cwd; void env; void config;
+    return { async startMonitoring(ref) { void ref; }, async waitUntilReady() { return "ref"; }, onAssignment(file) { void file; }, async stop() {} };
+  }
+};
+void enhancement;
 `,
   );
   await writeFile(
@@ -115,6 +129,72 @@ void version;
       },
       files: ["contract.mts"],
     }),
+  );
+  const prefix = join(consumer, "global prefix");
+  await exec(
+    process.execPath,
+    [
+      npm,
+      "install",
+      "--global",
+      "--prefix",
+      prefix,
+      "--offline",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      join(root, "issue-runner-core-contract.1.tgz"),
+      join(artifacts, artifact.filename),
+    ],
+    { cwd: consumer },
+  );
+  const modules = join(
+    prefix,
+    ...(process.platform === "win32" ? [] : ["lib"]),
+    "node_modules",
+  );
+  const enhancement = join(modules, "issue-runner-agent-generic");
+  await mkdir(enhancement);
+  await writeFile(
+    join(enhancement, "package.json"),
+    JSON.stringify({ type: "module", exports: "./index.mjs" }),
+  );
+  await writeFile(
+    join(enhancement, "index.mjs"),
+    `
+import assert from "node:assert/strict";
+export const contractVersion = 1;
+export let stopped = false;
+export async function createEnhancement(host, context, config) {
+  assert.equal(context.cwd, process.cwd());
+  assert.deepEqual(context.env, { GENERIC: "context" });
+  assert.deepEqual(config, { shared: { option: true }, other: ["kept"] });
+  assert.equal(await host.read(), "Visible screen 中文");
+  await host.submitText("完整 text\\n\\n  indented\\n");
+  await host.sendKeys(["Escape", "Shift+Enter"]);
+  await assert.rejects(host.requestRecovery(), /retained Core recovery/);
+  return {
+    async startMonitoring() { throw new Error("not part of preflight"); },
+    async waitUntilReady() { throw new Error("not part of preflight"); },
+    onAssignment() { throw new Error("not part of preflight"); },
+    async stop() { stopped = true; await assert.rejects(host.submitText("late"), /abort/); }
+  };
+}
+`,
+  );
+  await writeFile(
+    join(consumer, "enhanced-consumer.mjs"),
+    `
+import assert from "node:assert/strict";
+import { createTerminalPlugin } from ${JSON.stringify(pathToFileURL(join(modules, "issue-runner-herdr/dist/index.js")).href)};
+import * as fixture from ${JSON.stringify(pathToFileURL(join(enhancement, "index.mjs")).href)};
+const terminal = await createTerminalPlugin({ enhancements: { shared: { option: true }, other: ["kept"] } });
+const tab = await terminal.createTab({ cwd: process.cwd(), env: { GENERIC: "context" }, label: "Global enhancement", agent: "generic", submitKey: "Shift+Enter" });
+assert.equal(fixture.stopped, false);
+await terminal.closeTab(tab);
+assert.equal(fixture.stopped, true);
+await terminal.closeTab(tab);
+`,
   );
   await exec(
     process.execPath,
@@ -200,9 +280,66 @@ await resumer.closeTab(resumed);
       params: { tab_id: "w1:t2" },
       result: { type: "ok" },
     },
+    ...contextSteps(),
+    createStep(),
+    ...targetSteps(),
+    {
+      method: "pane.read",
+      params: {
+        pane_id: "w1:p2",
+        source: "visible",
+        format: "text",
+        strip_ansi: true,
+      },
+      result: {
+        type: "pane_read",
+        read: {
+          pane_id: "w1:p2",
+          workspace_id: "w1",
+          tab_id: "w1:t2",
+          source: "visible",
+          format: "text",
+          text: "Visible screen 中文",
+        },
+      },
+    },
+    ...targetSteps(),
+    ...inputSteps("完整 text\n\n  indented\n", "shift+enter"),
+    ...targetSteps(),
+    {
+      method: "pane.send_input",
+      params: { pane_id: "w1:p2", text: "", keys: ["escape"] },
+      result: { type: "ok" },
+    },
+    {
+      method: "pane.send_input",
+      params: { pane_id: "w1:p2", text: "", keys: ["shift+enter"] },
+      result: { type: "ok" },
+    },
+    ...targetSteps(),
+    ...targetSteps(),
+    {
+      method: "tab.list",
+      result: {
+        type: "tab_list",
+        tabs: [
+          { workspace_id: "w1", tab_id: "w1:t1" },
+          { workspace_id: "w1", tab_id: "w1:t2" },
+        ],
+      },
+    },
+    {
+      method: "tab.close",
+      params: { tab_id: "w1:t2" },
+      result: { type: "ok" },
+    },
   ]);
   t.after(() => server.close());
   await exec(process.execPath, ["consumer.mjs"], {
+    cwd: consumer,
+    env: { ...process.env, NODE_PATH: "", NODE_OPTIONS: "" },
+  });
+  await exec(process.execPath, ["enhanced-consumer.mjs"], {
     cwd: consumer,
     env: { ...process.env, NODE_PATH: "", NODE_OPTIONS: "" },
   });

@@ -17,6 +17,7 @@ The initialized plugin provides five operations:
   The explicit string environment overlay is applied over Runner's environment
   captured at initialization; Herdr supplies the new pane's routing identities.
   Overlay keys reserved for Herdr routing are rejected.
+  When a matching enhancement is installed, creation awaits its initialization/preflight before returning.
 - `start(handle, command)` submits the unchanged command with Enter, waits the
   configured startup delay, and returns `undefined`. Core can then Probe for identity.
 - `resume(handle, command, sessionref)` submits the unchanged command with Enter,
@@ -28,7 +29,8 @@ The initialized plugin provides five operations:
   supported case-insensitively, including `"Enter"` and `"Shift+Enter"`.
   Unsupported values reject before input.
   Text is not split, normalized, interpreted as argv, or escaped as shell code.
-- `closeTab(handle)` closes only the native tab recorded for that owned handle.
+- `closeTab(handle)` awaits enhancement stop, then closes only the native tab recorded for that owned handle.
+  A failed stop prevents native closure; either failure rejects and allows an explicit retry.
   Foreign and invalid handles reject. A known absent or previously closed tab
   closes successfully; repeated close after established success makes no backend
   requests. Closing the last tab is refused because Herdr would also remove the
@@ -44,8 +46,8 @@ cannot receive later input; other owned handles remain usable.
 
 Core owns Agent configuration, complete start/resume shell-command text, prompts,
 handoff acceptance, workflow retries, and workflow recovery. Herdr owns startup
-submission and timing. Optional enhancement hosting and business-turn recovery
-are separate work; this version runs without loading an enhancement.
+submission and timing. Optional enhancements own business-turn recovery decisions;
+Herdr transports their requested input. Enhanced start/resume readiness and successful assignment recovery remain separate work.
 Creation does not launch an Agent or prove shell readiness. Submission success
 reports backend acknowledgement, not Agent acceptance. Closing invokes the
 targeted backend operation; it does not prove process or descendant exit or
@@ -103,6 +105,35 @@ startup wait and rejects later input. If a native request is already in flight,
 it retains its five-second bound, but no subsequent input step is sent.
 Already delivered input cannot be retracted. Abort preserves the tab and Agent;
 `closeTab` remains available for explicit closure.
+
+## Optional enhancements
+
+Install `issue-runner-agent-${agent}` globally in the same npm prefix as Herdr and Core.
+Herdr treats `agent` as an opaque package-name suffix. Invalid package identifiers have no match.
+Discovery excludes Project-local packages, other prefixes, and caches, and rejects package or entry links that escape containment.
+Missing packages preserve base execution and ignore retained private settings. Discovery also runs when configuration is omitted.
+An installed package with invalid exports, an incompatible Core enhancement version, a missing dependency, or failed initialization rejects creation.
+
+Each created Tab receives one enhancement and one portable `EnhancementHost` from Core's public contract.
+The factory receives the Tab's `cwd` and environment overlay, plus the entire `enhancements` object unchanged, defaulting to `{}`.
+Creation awaits preflight without starting an Agent. The Host exposes four operations:
+
+- `read()` returns the current visible screen as text, excluding scrollback and terminal control sequences
+- `submitText(text)` sends the complete body, Right, and the Agent's creation-time submit chord
+- `sendKeys(keys)` validates all logical chords before input, then sends them in array order without an added Right or submit chord
+- `requestRecovery()` rejects until Core recovery wording is retained; successful assignment recovery is separate work
+
+Every Host operation checks the Tab's captured target identity. Enhancements need no native IDs, sockets, or Herdr environment variables.
+Logical keys include Enter, Shift+Enter, Escape, Tab, Backspace, arrows, printable characters, and backend-supported modifier combinations.
+Invalid key scripts and raw control bytes reject before input.
+
+Run abort stops enhancement activity and pending follow-up input while preserving the Tab and Agent.
+If abort occurs during factory initialization, Herdr stops the returned instance before rejecting creation.
+The factory owns cleanup when its partial initialization fails. Herdr releases its own cancellation resources and revokes Host input.
+Explicit close waits for stop before native closure. Completed stop and close actions are not repeated; failed actions can be retried.
+Stopping one enhancement never terminates a shared Agent daemon or unrelated sessions.
+
+Protocol-substitute and installed-package tests verify these boundaries. Real Agent acceptance remains in Core's Windows base #15 and Linux enhanced #198.
 
 ## Working context
 

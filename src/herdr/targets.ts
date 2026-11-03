@@ -249,6 +249,54 @@ export async function initialize() {
         throw error;
       }
     },
+    async read(owned: Target, signal: AbortSignal) {
+      signal.throwIfAborted();
+      const result = await client.request(
+        "pane.read",
+        {
+          pane_id: owned.pane,
+          source: "visible",
+          format: "text",
+          strip_ansi: true,
+        },
+        "pane_read",
+      );
+      signal.throwIfAborted();
+      const read = result.read;
+      if (
+        !record(read) ||
+        read.pane_id !== owned.pane ||
+        read.workspace_id !== owned.workspace ||
+        read.tab_id !== owned.tab ||
+        read.source !== "visible" ||
+        read.format !== "text" ||
+        typeof read.text !== "string"
+      )
+        throw new InvalidTargetError(
+          "Owned pane read returned an invalid visible screen",
+        );
+      return read.text;
+    },
+    async sendKeys(
+      owned: Target,
+      keys: readonly string[],
+      signal: AbortSignal,
+    ) {
+      try {
+        for (const key of keys) {
+          signal.throwIfAborted();
+          await client.request(
+            "pane.send_input",
+            { pane_id: owned.pane, text: "", keys: [key] },
+            "ok",
+          );
+        }
+      } catch (error) {
+        if (error instanceof BackendError && error.code === "pane_not_found")
+          throw new InvalidTargetError(error.message);
+        throw error;
+      }
+    },
     async close(owned: Target) {
       const ids = await tabIds();
       if (!ids.has(owned.tab)) {

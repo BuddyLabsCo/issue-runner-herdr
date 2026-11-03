@@ -9,5 +9,9 @@ export async function createTerminalPlugin(
   config: unknown = {},
 ): Promise<TerminalPlugin> {
   const options = configuration(config);
-  return operations(await initialize(), options.agentStartDelay);
+  return operations(
+    await initialize(),
+    options.agentStartDelay,
+    options.enhancements,
+  );
 }
