@@ -341,7 +341,12 @@ await resumer.closeTab(resumed);
   });
   await exec(process.execPath, ["enhanced-consumer.mjs"], {
     cwd: consumer,
-    env: { ...process.env, NODE_PATH: "", NODE_OPTIONS: "" },
+    env: {
+      ...process.env,
+      npm_config_prefix: prefix,
+      NODE_PATH: "",
+      NODE_OPTIONS: "",
+    },
   });
   const creation = server.requests[2];
   assert.equal(creation?.params.cwd, consumer);

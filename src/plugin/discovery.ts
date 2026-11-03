@@ -1,11 +1,16 @@
 import { lstat, realpath } from "node:fs/promises";
+import { exec } from "node:child_process";
+import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import {
   enhancementContractVersion,
   type EnhancementModule,
 } from "issue-runner-core/terminal";
 import { record } from "../herdr/client.ts";
+
+const queryNpm = promisify(exec);
 
 export async function discover(
   agent: string,
@@ -16,12 +21,7 @@ export async function discover(
     fileURLToPath(new URL("../../", import.meta.url)),
   );
   const modules = path.dirname(root);
-  if (
-    path.basename(modules) !== "node_modules" ||
-    (process.platform !== "win32" &&
-      path.basename(path.dirname(modules)) !== "lib")
-  )
-    return undefined;
+  if (path.basename(modules) !== "node_modules") return undefined;
   const sibling = path.join(modules, name);
   try {
     await lstat(sibling);
@@ -30,6 +30,19 @@ export async function discover(
     throw error;
   }
   try {
+    // Use a fixed command so Windows' npm.cmd works without interpolating paths or Agent input.
+    const { stdout } = await queryNpm("npm root --global", {
+      cwd: homedir(),
+      timeout: 5000,
+      windowsHide: true,
+    });
+    const globalModules = await realpath(stdout.trim()).catch(
+      (error: unknown) => {
+        if (record(error) && error.code === "ENOENT") return undefined;
+        throw error;
+      },
+    );
+    if (globalModules !== modules) return undefined;
     const installed = await realpath(sibling);
     if (path.dirname(installed) !== modules)
       throw new Error("enhancement must be installed in the same npm prefix");

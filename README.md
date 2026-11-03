@@ -109,6 +109,7 @@ Already delivered input cannot be retracted. Abort preserves the tab and Agent;
 ## Optional enhancements
 
 Install `issue-runner-agent-${agent}` globally in the same npm prefix as Herdr and Core.
+Herdr verifies its location against the active `npm root --global`. Keep npm's prefix configuration set to your installation prefix when launching Runner.
 Herdr treats `agent` as an opaque package-name suffix. Invalid package identifiers have no match.
 Discovery excludes Project-local packages, other prefixes, and caches, and rejects package or entry links that escape containment.
 Missing packages preserve base execution and ignore retained private settings. Discovery also runs when configuration is omitted.

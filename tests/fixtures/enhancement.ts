@@ -49,14 +49,30 @@ interface Fixture {
   };
 }
 
-export async function installedPlugin() {
+export async function installedPlugin(
+  installation: "global" | "project" | "project-lib" = "global",
+) {
   const prefix = await mkdtemp(join(tmpdir(), "herdr global prefix "));
   const modules = join(
     prefix,
-    ...(process.platform === "win32" ? [] : ["lib"]),
+    ...(process.platform === "win32" || installation === "project"
+      ? []
+      : ["lib"]),
     "node_modules",
   );
   const pluginRoot = join(modules, "issue-runner-herdr");
+  const previousPrefix = process.env.npm_config_prefix;
+  const activePrefix =
+    installation === "global" ? prefix : join(prefix, "active npm prefix");
+  await mkdir(
+    join(
+      activePrefix,
+      ...(process.platform === "win32" ? [] : ["lib"]),
+      "node_modules",
+    ),
+    { recursive: true },
+  );
+  process.env.npm_config_prefix = activePrefix;
   await mkdir(pluginRoot, { recursive: true });
   const sourceRoot = new URL("../../src/", import.meta.url);
   for (const entry of await readdir(sourceRoot, {
@@ -100,6 +116,7 @@ export async function installedPlugin() {
   )) as TerminalPluginModule;
   return {
     prefix,
+    activePrefix,
     modules,
     plugin,
     async install(agent = "generic", source = genericEnhancement) {
@@ -124,6 +141,8 @@ export async function installedPlugin() {
       };
     },
     async close() {
+      if (previousPrefix === undefined) delete process.env.npm_config_prefix;
+      else process.env.npm_config_prefix = previousPrefix;
       await rm(prefix, { recursive: true, force: true });
     },
   };

@@ -22,7 +22,7 @@ public module -> plugin/ -> herdr/ -> Herdr server
 
 - Public exports: `contractVersion` and `createTerminalPlugin`; consume types from `issue-runner-core/terminal`.
 - Keep handles, target associations, and each Tab's enhancement inside its plugin instance; keep transport and test seams private.
-- Discover optional enhancements only beside the globally installed plugin. Filesystem I/O for package discovery belongs in `plugin/discovery.ts`; native I/O belongs in `herdr/`.
+- Discover optional enhancements only beside the globally installed plugin. Package filesystem checks and the bounded `npm root --global` query belong in `plugin/discovery.ts`; native I/O belongs in `herdr/`.
 - Core owns workflow, Agent configuration, retries, handoff acceptance and workflow recovery.
 - The plugin layer owns startup progress, delay and Run cancellation per tab; native I/O retains finite bounds.
 - Optional enhancements own business-turn recovery decisions; Herdr transports their requested input through Core's bound Host contract.

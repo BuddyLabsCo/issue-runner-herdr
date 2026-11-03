@@ -76,8 +76,8 @@ export default defineConfig(
             ...productionImports,
             {
               regex:
-                "^(node:)?(net|tls|http|https|http2|dns|dgram|child_process|cluster|worker_threads|readline|tty)(/|$)",
-              message: "Only package discovery filesystem I/O belongs here.",
+                "^(node:)?(net|tls|http|https|http2|dns|dgram|cluster|worker_threads|readline|tty)(/|$)",
+              message: "Keep native backend I/O out of package discovery.",
             },
           ],
         },

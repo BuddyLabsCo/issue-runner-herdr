@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import {
@@ -22,13 +22,40 @@ const options = {
   submitKey: "Enter",
 };
 
+for (const installation of ["project", "project-lib"] as const) {
+  await test(`${installation} installation never initializes a sibling enhancement, including the Windows node_modules layout`, async (t) => {
+    const installed = await installedPlugin(installation);
+    if (installation === "project-lib")
+      await rm(installed.activePrefix, { recursive: true });
+    await installed.install(
+      "generic",
+      "throw new Error('Project-local enhancement executed');",
+    );
+    const server = await herdr([
+      ...contextSteps(),
+      createStep(),
+      ...targetSteps(),
+      ...inputSteps("base command"),
+    ]);
+    t.after(() => server.close());
+    t.after(() => installed.close());
+    const plugin = await installed.plugin.createTerminalPlugin({
+      agentStartDelay: 0,
+      enhancements: { retained: true },
+    });
+    const tab = await plugin.createTab(options);
+    assert.equal(server.requests.length, 3, "creation preserves the base path");
+    assert.equal(await plugin.start(tab, "base command"), undefined);
+  });
+}
+
 for (const config of [undefined, {}]) {
   await test(`omitted enhancement options still discover the generic package: ${JSON.stringify(config)}`, async (t) => {
     const installed = await installedPlugin();
-    t.after(() => installed.close());
     const fixture = await (await installed.install()).fixture();
     const server = await herdr([...contextSteps(), createStep()]);
     t.after(() => server.close());
+    t.after(() => installed.close());
     await (
       await installed.plugin.createTerminalPlugin(config)
     ).createTab(options);
@@ -46,7 +73,6 @@ for (const agent of [
 ]) {
   await test(`absent or invalid package identifier keeps base execution and ignores private settings: ${agent.slice(0, 30)}`, async (t) => {
     const installed = await installedPlugin();
-    t.after(() => installed.close());
     await installed.install(
       "unrelated",
       "throw new Error('must not import unrelated package');",
@@ -76,6 +102,7 @@ for (const agent of [
       ...inputSteps("base command"),
     ]);
     t.after(() => server.close());
+    t.after(() => installed.close());
     const plugin = await installed.plugin.createTerminalPlugin({
       agentStartDelay: 0,
       enhancements: { removedPackageOption: ["ignored"] },
@@ -122,10 +149,10 @@ const broken = [
 for (const [name, source, expected] of broken) {
   await test(`installed ${name} rejects instead of selecting base execution`, async (t) => {
     const installed = await installedPlugin();
-    t.after(() => installed.close());
     await installed.install("generic", source);
     const server = await herdr([...contextSteps(), createStep()]);
     t.after(() => server.close());
+    t.after(() => installed.close());
     const plugin = await installed.plugin.createTerminalPlugin({
       agentStartDelay: 0,
     });
@@ -141,13 +168,13 @@ for (const method of [
 ]) {
   await test(`installed enhancement must implement ${method}`, async (t) => {
     const installed = await installedPlugin();
-    t.after(() => installed.close());
     await installed.install(
       "generic",
       genericEnhancement.replace(`${method}(`, `missing_${method}(`),
     );
     const server = await herdr([...contextSteps(), createStep()]);
     t.after(() => server.close());
+    t.after(() => installed.close());
     await assert.rejects(
       (await installed.plugin.createTerminalPlugin({})).createTab(options),
       /Enhancement must provide/,
@@ -158,7 +185,6 @@ for (const method of [
 for (const escape of ["package", "entry"]) {
   await test(`rejects ${escape} symlinks escaping the same-prefix package`, async (t) => {
     const installed = await installedPlugin();
-    t.after(() => installed.close());
     const outside = join(installed.prefix, "outside");
     await mkdir(outside);
     await writeFile(
@@ -189,6 +215,7 @@ for (const escape of ["package", "entry"]) {
     }
     const server = await herdr([...contextSteps(), createStep()]);
     t.after(() => server.close());
+    t.after(() => installed.close());
     await assert.rejects(
       (await installed.plugin.createTerminalPlugin({})).createTab(options),
       /same npm prefix|escapes its installed package/,

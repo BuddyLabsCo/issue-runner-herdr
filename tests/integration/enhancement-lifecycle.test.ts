@@ -38,7 +38,6 @@ const closeSteps = (): Step[] => [
 
 await test("close waits for stop, preserves the terminal on stop failure, and retries native close without repeating completed stop", async (t) => {
   const installed = await installedPlugin();
-  t.after(() => installed.close());
   const fixture = await (await installed.install()).fixture();
   const firstClose = closeSteps();
   firstClose[3] = {
@@ -52,6 +51,7 @@ await test("close waits for stop, preserves the terminal on stop failure, and re
     ...closeSteps(),
   ]);
   t.after(() => server.close());
+  t.after(() => installed.close());
   const plugin = await installed.plugin.createTerminalPlugin({});
   const tab = await plugin.createTab(options);
   const events = new EventEmitter();
@@ -87,7 +87,6 @@ await test("close waits for stop, preserves the terminal on stop failure, and re
 
 await test("Run abort stops enhancement activity, blocks all later Host operations, and preserves a closable Tab", async (t) => {
   const installed = await installedPlugin();
-  t.after(() => installed.close());
   const fixture = await (await installed.install()).fixture();
   const server = await herdr([
     ...contextSteps(),
@@ -95,6 +94,7 @@ await test("Run abort stops enhancement activity, blocks all later Host operatio
     ...closeSteps(),
   ]);
   t.after(() => server.close());
+  t.after(() => installed.close());
   const controller = new AbortController();
   const events = new EventEmitter();
   const stopped = once(events, "stopped");
@@ -123,10 +123,10 @@ await test("Run abort stops enhancement activity, blocks all later Host operatio
 
 await test("abort during pending preflight stops the late-created instance and leaves retained Host capabilities cancelled", async (t) => {
   const installed = await installedPlugin();
-  t.after(() => installed.close());
   const fixture = await (await installed.install()).fixture();
   const server = await herdr([...contextSteps(), createStep()]);
   t.after(() => server.close());
+  t.after(() => installed.close());
   const controller = new AbortController();
   const events = new EventEmitter();
   const entered = once(events, "entered");
@@ -153,10 +153,10 @@ await test("abort during pending preflight stops the late-created instance and l
 
 await test("factory failure owns its partial cleanup while Herdr releases its cancellation listener and revokes the Host", async (t) => {
   const installed = await installedPlugin();
-  t.after(() => installed.close());
   const fixture = await (await installed.install()).fixture();
   const server = await herdr([...contextSteps(), createStep()]);
   t.after(() => server.close());
+  t.after(() => installed.close());
   const controller = new AbortController();
   let active = false;
   fixture.controls.initialize = async () => {
@@ -185,10 +185,10 @@ await test("factory failure owns its partial cleanup while Herdr releases its ca
 
 await test("a late-created instance whose stop fails rejects creation without silently retrying stop", async (t) => {
   const installed = await installedPlugin();
-  t.after(() => installed.close());
   const fixture = await (await installed.install()).fixture();
   const server = await herdr([...contextSteps(), createStep()]);
   t.after(() => server.close());
+  t.after(() => installed.close());
   const controller = new AbortController();
   fixture.controls.initialize = () => {
     controller.abort();
@@ -205,7 +205,6 @@ await test("a late-created instance whose stop fails rejects creation without si
 
 await test("confirmed absence still stops the enhancement even if earlier Host input retired the handle", async (t) => {
   const installed = await installedPlugin();
-  t.after(() => installed.close());
   const fixture = await (await installed.install()).fixture();
   const server = await herdr([
     ...contextSteps(),
@@ -221,6 +220,7 @@ await test("confirmed absence still stops the enhancement even if earlier Host i
     },
   ]);
   t.after(() => server.close());
+  t.after(() => installed.close());
   const plugin = await installed.plugin.createTerminalPlugin({});
   const handle = await plugin.createTab(options);
   await assert.rejects(fixture.calls[0]!.host.submitText("absent"), /absent/);
@@ -231,7 +231,6 @@ await test("confirmed absence still stops the enhancement even if earlier Host i
 
 await test("cancelling one Tab leaves another enhancement and its native input usable", async (t) => {
   const installed = await installedPlugin();
-  t.after(() => installed.close());
   const fixture = await (await installed.install()).fixture();
   const otherPane = {
     ...pane,
@@ -261,6 +260,7 @@ await test("cancelling one Tab leaves another enhancement and its native input u
     ...closeSteps(),
   ]);
   t.after(() => server.close());
+  t.after(() => installed.close());
   const controller = new AbortController();
   const plugin = await installed.plugin.createTerminalPlugin({});
   const first = await plugin.createTab({

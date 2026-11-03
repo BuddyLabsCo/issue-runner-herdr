@@ -37,6 +37,7 @@ await test("allows dependencies in the intended direction", async () => {
     ["src/plugin/operations.mjs", "../herdr/client.mjs"],
     ["src/plugin/operations.mjs", "node:path"],
     ["src/plugin/discovery.ts", "node:fs/promises"],
+    ["src/plugin/discovery.ts", "node:child_process"],
     ["src/herdr/client.mjs", "node:net"],
     ["src/index.mjs", "issue-runner-core/terminal"],
     ["tests/integration/plugin.mjs", "../../src/index.mjs"],

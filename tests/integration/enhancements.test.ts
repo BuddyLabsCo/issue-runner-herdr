@@ -13,10 +13,10 @@ import {
 
 await test("createTab awaits one generic preflight with unchanged options and Tab context, without starting the Agent", async (t) => {
   const installed = await installedPlugin();
-  t.after(() => installed.close());
   const enhancement = await (await installed.install()).fixture();
   const server = await herdr([...contextSteps(), createStep()]);
   t.after(() => server.close());
+  t.after(() => installed.close());
   const options = { private: { nested: ["kept"] }, another: true };
   const plugin = await installed.plugin.createTerminalPlugin({
     enhancements: options,
@@ -62,7 +62,6 @@ await test("createTab awaits one generic preflight with unchanged options and Ta
 for (const phase of ["read", "body", "Right", "keys"]) {
   await test(`abort during pending Host ${phase} prevents further automatic input`, async (t) => {
     const installed = await installedPlugin();
-    t.after(() => installed.close());
     const fixture = await (await installed.install()).fixture();
     const events = new EventEmitter();
     const requested = once(events, "requested");
@@ -111,6 +110,7 @@ for (const phase of ["read", "body", "Right", "keys"]) {
       return step;
     });
     t.after(() => server.close());
+    t.after(() => installed.close());
     const plugin = await installed.plugin.createTerminalPlugin({});
     await plugin.createTab({
       cwd: process.cwd(),
@@ -141,7 +141,6 @@ for (const phase of ["read", "body", "Right", "keys"]) {
 
 await test("all bound Host operations reject a replaced target and never follow it", async (t) => {
   const installed = await installedPlugin();
-  t.after(() => installed.close());
   const fixture = await (await installed.install()).fixture();
   const steps = targetSteps();
   steps[1]!.result = {
@@ -150,6 +149,7 @@ await test("all bound Host operations reject a replaced target and never follow 
   };
   const server = await herdr([...contextSteps(), createStep(), ...steps]);
   t.after(() => server.close());
+  t.after(() => installed.close());
   const plugin = await installed.plugin.createTerminalPlugin({});
   await plugin.createTab({
     cwd: process.cwd(),
@@ -172,7 +172,6 @@ await test("all bound Host operations reject a replaced target and never follow 
 
 await test("bound Host reads only visible text and sends complete text and pure ordered chords using the captured Agent key", async (t) => {
   const installed = await installedPlugin();
-  t.after(() => installed.close());
   const enhancement = await (await installed.install()).fixture();
   const text = "\n中文 🐎\n  'quotes' $HOME `literal`\n\n";
   const server = await herdr([
@@ -222,6 +221,7 @@ await test("bound Host reads only visible text and sends complete text and pure 
     ...targetSteps(),
   ]);
   t.after(() => server.close());
+  t.after(() => installed.close());
   const plugin = await installed.plugin.createTerminalPlugin({
     agentStartDelay: 0,
   });
