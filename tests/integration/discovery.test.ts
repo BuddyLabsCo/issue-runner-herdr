@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import {
@@ -25,8 +25,6 @@ const options = {
 for (const installation of ["project", "project-lib"] as const) {
   await test(`${installation} installation never initializes a sibling enhancement, including the Windows node_modules layout`, async (t) => {
     const installed = await installedPlugin(installation);
-    if (installation === "project-lib")
-      await rm(installed.activePrefix, { recursive: true });
     await installed.install(
       "generic",
       "throw new Error('Project-local enhancement executed');",
@@ -48,6 +46,66 @@ for (const installation of ["project", "project-lib"] as const) {
     assert.equal(await plugin.start(tab, "base command"), undefined);
   });
 }
+
+for (const installation of ["global", "global-windows"] as const) {
+  for (const broken of [false, true]) {
+    await test(`${installation} discovery follows the installation with unrelated active npm configuration (broken: ${broken})`, async (t) => {
+      const installed = await installedPlugin(installation);
+      const selected = await installed.install(
+        "generic",
+        broken
+          ? genericEnhancement.replace(
+              "contractVersion = 1",
+              "contractVersion = 2",
+            )
+          : genericEnhancement,
+      );
+      const fixture = await selected.fixture();
+      const server = await herdr([...contextSteps(), createStep()]);
+      t.after(() => server.close());
+      t.after(() => installed.close());
+      const unrelated = join(installed.prefix, "unrelated npm prefix");
+      await mkdir(
+        join(
+          unrelated,
+          ...(process.platform === "win32" ? [] : ["lib"]),
+          "node_modules",
+        ),
+        { recursive: true },
+      );
+      process.env.npm_config_prefix = unrelated;
+      const plugin = await installed.plugin.createTerminalPlugin(undefined);
+      if (broken) {
+        await assert.rejects(plugin.createTab(options), /contractVersion/);
+      } else {
+        await plugin.createTab(options);
+        assert.equal(
+          fixture.calls.length,
+          1,
+          "the installed enhancement completes preflight",
+        );
+      }
+    });
+  }
+}
+
+await test("a Project-local installation cannot borrow a launcher for another entry point", async (t) => {
+  const installed = await installedPlugin("project");
+  await installed.install(
+    "generic",
+    "throw new Error('Project-local enhancement executed');",
+  );
+  await writeFile(join(installed.prefix, "other-cli.js"), "export {};\n");
+  await writeFile(
+    join(installed.prefix, "issue-runner.cmd"),
+    '@echo off\r\nnode "%dp0%\\other-cli.js" %*\r\n',
+  );
+  const server = await herdr([...contextSteps(), createStep()]);
+  t.after(() => server.close());
+  t.after(() => installed.close());
+  const plugin = await installed.plugin.createTerminalPlugin(undefined);
+  await plugin.createTab(options);
+});
 
 for (const config of [undefined, {}]) {
   await test(`omitted enhancement options still discover the generic package: ${JSON.stringify(config)}`, async (t) => {

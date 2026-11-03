@@ -1,16 +1,65 @@
-import { lstat, realpath } from "node:fs/promises";
-import { exec } from "node:child_process";
-import { homedir } from "node:os";
+import { lstat, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { promisify } from "node:util";
 import {
   enhancementContractVersion,
   type EnhancementModule,
 } from "issue-runner-core/terminal";
 import { record } from "../herdr/client.ts";
 
-const queryNpm = promisify(exec);
+async function globalInstallation(modules: string): Promise<boolean> {
+  try {
+    const core = await realpath(path.join(modules, "issue-runner-core"));
+    const publicEntry = await realpath(
+      fileURLToPath(import.meta.resolve("issue-runner-core/terminal")),
+    );
+    if (
+      path.dirname(core) !== modules ||
+      !publicEntry.startsWith(`${core}${path.sep}`)
+    )
+      return false;
+    const manifest: unknown = JSON.parse(
+      await readFile(path.join(core, "package.json"), "utf8"),
+    );
+    if (
+      !record(manifest) ||
+      manifest.name !== "issue-runner-core" ||
+      !record(manifest.bin) ||
+      typeof manifest.bin["issue-runner"] !== "string"
+    )
+      return false;
+    const cli = await realpath(
+      path.resolve(core, manifest.bin["issue-runner"]),
+    );
+    if (!cli.startsWith(`${core}${path.sep}`)) return false;
+    for (const launcher of [
+      path.join(path.dirname(modules), "issue-runner.cmd"),
+      path.resolve(modules, "../../bin/issue-runner"),
+    ]) {
+      try {
+        let destination = launcher;
+        if (launcher.endsWith(".cmd")) {
+          // npm's Windows shim records its target relative to the launcher's directory.
+          const match = /"%(?:~dp0|dp0%)\\([^"]+?)"\s+%\*/.exec(
+            await readFile(launcher, "utf8"),
+          );
+          if (!match) continue;
+          destination = path.resolve(
+            path.dirname(launcher),
+            match[1]!.replaceAll("\\", path.sep),
+          );
+        }
+        if ((await realpath(destination)) === cli) return true;
+      } catch (error) {
+        if (!record(error) || error.code !== "ENOENT") throw error;
+      }
+    }
+    return false;
+  } catch (error) {
+    if (record(error) && error.code === "ENOENT") return false;
+    throw error;
+  }
+}
 
 export async function discover(
   agent: string,
@@ -30,19 +79,7 @@ export async function discover(
     throw error;
   }
   try {
-    // Use a fixed command so Windows' npm.cmd works without interpolating paths or Agent input.
-    const { stdout } = await queryNpm("npm root --global", {
-      cwd: homedir(),
-      timeout: 5000,
-      windowsHide: true,
-    });
-    const globalModules = await realpath(stdout.trim()).catch(
-      (error: unknown) => {
-        if (record(error) && error.code === "ENOENT") return undefined;
-        throw error;
-      },
-    );
-    if (globalModules !== modules) return undefined;
+    if (!(await globalInstallation(modules))) return undefined;
     const installed = await realpath(sibling);
     if (path.dirname(installed) !== modules)
       throw new Error("enhancement must be installed in the same npm prefix");

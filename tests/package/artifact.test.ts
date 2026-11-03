@@ -5,6 +5,7 @@ import {
   mkdir,
   readFile,
   readdir,
+  rename,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -130,7 +131,7 @@ void enhancement;
       files: ["contract.mts"],
     }),
   );
-  const prefix = join(consumer, "global prefix");
+  const originalPrefix = join(consumer, "original global prefix");
   await exec(
     process.execPath,
     [
@@ -138,7 +139,7 @@ void enhancement;
       "install",
       "--global",
       "--prefix",
-      prefix,
+      originalPrefix,
       "--offline",
       "--ignore-scripts",
       "--no-audit",
@@ -148,6 +149,8 @@ void enhancement;
     ],
     { cwd: consumer },
   );
+  const prefix = join(consumer, "relocated global prefix");
+  await rename(originalPrefix, prefix);
   const modules = join(
     prefix,
     ...(process.platform === "win32" ? [] : ["lib"]),
@@ -343,7 +346,8 @@ await resumer.closeTab(resumed);
     cwd: consumer,
     env: {
       ...process.env,
-      npm_config_prefix: prefix,
+      npm_config_prefix: join(consumer, "unrelated active prefix"),
+      PATH: "",
       NODE_PATH: "",
       NODE_OPTIONS: "",
     },
