@@ -65,7 +65,6 @@ await test("installed artifact conforms to Core composite startup in a consumer 
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
-      "--offline",
       join(root, "issue-runner-core-contract.1.tgz"),
       join(artifacts, artifact.filename),
     ],

@@ -267,10 +267,11 @@ Run the automated isolated-consumer check separately with:
 npm run test:package
 ```
 
-It packs the plugin, installs it and the supplied Core artifact offline into a
+It packs the plugin, installs it and the supplied Core artifact into a
 temporary directory containing spaces, and resolves the plugin from that
 directory. The consumer installs only these artifacts and Core's transitive
 dependencies, with installation scripts disabled and no enhancement installed.
+Core's transitive dependencies may require npm registry access.
 A development TypeScript compiler checks the installed declarations against `TerminalPluginModule` with no checkout types in the consumer.
 An independent consumer process checks the exports, configured asynchronous
 factory, all five operations, start/resume refs, and five-argument submission
