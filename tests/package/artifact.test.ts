@@ -176,7 +176,7 @@ export async function createEnhancement(host, context, config) {
   assert.equal(context.cwd, process.cwd());
   assert.deepEqual(context.env, { GENERIC: "context" });
   assert.deepEqual(config, { shared: { option: true }, other: ["kept"] });
-  const call = { monitoring: [], readiness: 0, stopped: false };
+  const call = { host, assignments: [], monitoring: [], readiness: 0, stopped: false };
   calls.push(call);
   if (calls.length === 1) {
     assert.equal(await host.read(), "Visible screen 中文");
@@ -192,7 +192,7 @@ export async function createEnhancement(host, context, config) {
       if (call.monitoring[0] !== undefined && call.readiness === 1) throw new Error("readiness unavailable");
       return call.monitoring[0] ?? "packaged native ref";
     },
-    onAssignment() { throw new Error("not part of preflight"); },
+    onAssignment(...args) { call.assignments.push(args); },
     async stop() { call.stopped = true; await assert.rejects(host.submitText("late"), /abort/); }
   };
 }
@@ -212,6 +212,12 @@ assert.equal(await terminal.start(tab, "generic-agent --configured"), "packaged 
 assert.equal(await terminal.start(tab, "must not be replayed"), "packaged native ref");
 assert.deepEqual(fixture.calls[0].monitoring, [undefined]);
 assert.equal(fixture.calls[0].readiness, 2);
+await terminal.submitText(tab, "Packaged task", undefined, "/exact/../handoff 中文.json", "Packaged recovery\\n\\n  中文\\n");
+assert.deepEqual(fixture.calls[0].assignments, [["/exact/../handoff 中文.json"]]);
+await fixture.calls[0].host.requestRecovery();
+await terminal.submitText(tab, "Packaged continuation", "Enter", "/exact/../handoff 中文.json", "Latest packaged recovery");
+await fixture.calls[0].host.requestRecovery();
+assert.deepEqual(fixture.calls[0].assignments, [["/exact/../handoff 中文.json"], ["/exact/../handoff 中文.json"]]);
 await terminal.closeTab(tab);
 assert.equal(fixture.calls[0].stopped, true);
 await terminal.closeTab(tab);
@@ -254,7 +260,7 @@ const tab = await terminal.createTab({ cwd: process.cwd(), env: {}, label: "Pack
 assert.equal(await terminal.start(tab, "agent --configured"), undefined);
 assert.equal(await terminal.start(tab, "agent --configured"), undefined);
 await terminal.submitText(tab, "echo packaged", undefined, "/exact/handoff.json", "Core recovery wording");
-await terminal.submitText(tab, "echo explicit", "Enter");
+await terminal.submitText(tab, "echo explicit", "Enter", "/next/handoff.json", "Latest Core recovery wording");
 await terminal.closeTab(tab);
 const resumer = await plugin.createTerminalPlugin({ agentStartDelay: 0 });
 const resumed = await resumer.createTab({ cwd: process.cwd(), env: {}, label: "Packaged resume", agent: "opaque", submitKey: "Enter" });
@@ -349,6 +355,14 @@ await resumer.closeTab(resumed);
     ...targetSteps(),
     ...targetSteps(),
     ...inputSteps("generic-agent --configured"),
+    ...targetSteps(),
+    ...inputSteps("Packaged task"),
+    ...targetSteps(),
+    ...inputSteps("Packaged recovery\n\n  中文\n", "shift+enter"),
+    ...targetSteps(),
+    ...inputSteps("Packaged continuation"),
+    ...targetSteps(),
+    ...inputSteps("Latest packaged recovery", "shift+enter"),
     ...targetSteps(),
     {
       method: "tab.list",

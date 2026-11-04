@@ -23,6 +23,8 @@ export function operations(
   const monitoring = new WeakMap<object, Promise<void>>();
   const sessionrefs = new WeakMap<object, string | undefined>();
   const signals = new WeakMap<object, AbortSignal>();
+  const recoveries = new WeakMap<object, string | undefined>();
+  const inputs = new WeakMap<object, Promise<void>>();
   const lifecycles = new WeakMap<object, ReturnType<typeof lifecycle>>();
   const closed = new WeakSet<object>();
   const invalid = new WeakSet<object>();
@@ -74,6 +76,23 @@ export function operations(
     } finally {
       signal.removeEventListener("abort", cancel);
     }
+  }
+  async function input(
+    handle: object,
+    action: (target: Target, signal: AbortSignal | undefined) => Promise<void>,
+  ) {
+    const signal = signals.get(handle);
+    signal?.throwIfAborted();
+    const pending = (inputs.get(handle) ?? Promise.resolve()).then(() =>
+      onTarget(handle, action),
+    );
+    inputs.set(
+      handle,
+      pending.catch(() => {
+        // A failed send must not block subsequent explicit input.
+      }),
+    );
+    return signal ? automatic(handle, () => pending) : pending;
   }
   async function start(
     handle: object,
@@ -135,14 +154,13 @@ export function operations(
       if (typeof options.submitKey !== "string") {
         throw new Error("createTab requires a submitKey string");
       }
-      encodeSubmitKey(options.submitKey);
+      const submitKey = encodeSubmitKey(options.submitKey);
       const { signal } = options;
       if (signal !== undefined && !(signal instanceof AbortSignal)) {
         throw new Error("createTab signal must be an AbortSignal");
       }
       signal?.throwIfAborted();
       const context = { cwd: options.cwd, env: { ...options.env } };
-      const submitKey = options.submitKey;
       const agent = options.agent;
       const native = await host.create(options);
       const ids = [native.tab, native.pane, native.terminal];
@@ -162,19 +180,25 @@ export function operations(
             host.read(target, signal!),
           );
         },
-        submitText(text) {
-          return plugin.submitText(handle, text, submitKey);
+        async submitText(text) {
+          if (typeof text !== "string")
+            throw new Error("submitText requires a string");
+          await input(handle, (target, signal) =>
+            host.submit(target, text, submitKey, signal),
+          );
         },
         async sendKeys(keys) {
           const encoded = encodeKeys(keys);
-          await onTarget(handle, (target, signal) =>
+          await input(handle, (target, signal) =>
             host.sendKeys(target, encoded, signal!),
           );
         },
         requestRecovery() {
-          return onTarget(handle, () =>
-            Promise.reject(new Error("No retained Core recovery wording")),
-          );
+          return input(handle, (target, signal) => {
+            const text = recoveries.get(handle);
+            if (!text) throw new Error("No retained Core recovery wording");
+            return host.submit(target, text, submitKey, signal);
+          });
         },
       };
       try {
@@ -202,13 +226,22 @@ export function operations(
         );
       return sessionref;
     },
-    async submitText(handle, text, submitKey = "Enter") {
+    async submitText(
+      handle,
+      text,
+      submitKey = "Enter",
+      expectedFile,
+      recoveryText,
+    ) {
       const key = encodeSubmitKey(submitKey);
       if (typeof text !== "string")
         throw new Error("submitText requires a string");
-      await onTarget(handle, (target, signal) =>
-        host.submit(target, text, key, signal),
-      );
+      await input(handle, (target, signal) => {
+        recoveries.set(handle, recoveryText);
+        if (expectedFile !== undefined)
+          lifecycles.get(handle)?.instance?.onAssignment(expectedFile);
+        return host.submit(target, text, key, signal);
+      });
     },
     async closeTab(handle) {
       const owned = handles.get(handle);

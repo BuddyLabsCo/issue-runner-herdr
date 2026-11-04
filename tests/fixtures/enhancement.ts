@@ -24,7 +24,7 @@ export const contractVersion = 1;
 export const calls = [];
 export const controls = {};
 export async function createEnhancement(host, context, config) {
-  const call = { host, context, config, stops: 0, monitoring: [], readiness: 0 };
+  const call = { host, context, config, stops: 0, monitoring: [], readiness: 0, assignments: [] };
   calls.push(call);
   await controls.initialize?.(call);
   return {
@@ -33,7 +33,7 @@ export async function createEnhancement(host, context, config) {
       call.readiness++;
       return controls.ready ? await controls.ready(call) : "generic-ref";
     },
-    onAssignment() { throw new Error("assignments are separate work"); },
+    onAssignment(...args) { call.assignments.push(args); controls.assignment?.(call, ...args); },
     async stop() { call.stops++; await controls.stop?.(call); },
   };
 }
@@ -46,6 +46,7 @@ export interface EnhancementCall {
   stops: number;
   monitoring: (string | undefined)[];
   readiness: number;
+  assignments: string[][];
 }
 
 interface Fixture {
@@ -55,6 +56,7 @@ interface Fixture {
     monitor?: (call: EnhancementCall) => Promise<void>;
     ready?: (call: EnhancementCall) => Promise<string>;
     stop?: (call: EnhancementCall) => Promise<void>;
+    assignment?: (call: EnhancementCall, expectedFile: string) => void;
   };
 }
 

@@ -73,8 +73,14 @@ LF to CR or send each line separately.
 Core supplies complete commands to `start` or `resume` for a fresh tab. Herdr
 always uses Enter for commands, regardless of the Agent's creation-time key.
 Later prompts use `submitText(handle, prompt, "shift+enter")` or an omitted key
-for Enter. The optional `expectedFile` and `recoveryText` arguments are accepted
-without changing base submission. Herdr performs no identity Probe.
+for Enter. Core passes assignment context with
+`submitText(handle, prompt, submitKey?, expectedFile?, recoveryText?)`.
+Before input begins, Herdr retains that submission's `recoveryText` and synchronously
+calls the enhancement's `onAssignment(expectedFile)` when a path is supplied.
+It forwards the exact path without normalization, including repeated paths for
+continuations. New paths replace the enhancement's expectation. Notification errors
+reject the submission before task input. Base submission works without an enhancement;
+Core still validates handoffs independently. Herdr performs no identity Probe.
 
 ## Startup configuration and cancellation
 
@@ -126,19 +132,26 @@ Creation awaits preflight without starting an Agent. The Host exposes four opera
 - `read()` returns the current visible screen as text, excluding scrollback and terminal control sequences
 - `submitText(text)` sends the complete body, Right, and the Agent's creation-time submit chord
 - `sendKeys(keys)` validates all logical chords before input, then sends them in array order without an added Right or submit chord
-- `requestRecovery()` rejects until Core recovery wording is retained; successful assignment recovery is separate work
+- `requestRecovery()` submits the current Core recovery wording unchanged, using the Agent's creation-time submit chord
+
+Recovery sends the full body, Right, then the captured submit chord, in that order.
+Missing or empty recovery wording rejects. Each Core submission replaces the retained
+wording; omitting it clears previous wording. The enhancement receives only the exact
+expected path, never task text or recovery wording. Its marker and recovery input
+do not register assignments or replace retained wording.
 
 Every Host operation checks the Tab's captured target identity. Enhancements need no native IDs, sockets, or Herdr environment variables.
 Logical keys include Enter, Shift+Enter, Escape, Tab, Backspace, arrows, printable characters, and backend-supported modifier combinations.
 Invalid key scripts and raw control bytes reject before input.
 
-Run abort stops enhancement activity and pending follow-up input while preserving the Tab and Agent.
+Run abort or stop cancels pending automatic recovery and rejects later sends while preserving the Tab and Agent.
+Already delivered input cannot be retracted.
 If abort occurs during factory initialization, Herdr stops the returned instance before rejecting creation.
 The factory owns cleanup when its partial initialization fails. Herdr releases its own cancellation resources and revokes Host input.
 Explicit close waits for stop before native closure. Completed stop and close actions are not repeated; failed actions can be retried.
 Stopping one enhancement never terminates a shared Agent daemon or unrelated sessions.
 
-Protocol-substitute and installed-package tests verify these boundaries with a generic enhancement, including enhanced start and readiness retry. Real Agent acceptance remains in Core's Windows base #15 and Linux enhanced #198.
+Protocol-substitute and installed-package tests verify these boundaries with a generic enhancement, including enhanced start, readiness retry, and assignment recovery. Real Agent acceptance remains in Core's Windows base #15 and Linux enhanced #198.
 
 ## Working context
 
@@ -231,7 +244,8 @@ There is no continuous connection or restart notification: loss is detected thro
 failed, incomplete, or malformed requests and inconsistent target identities.
 A restart between successful requests that reuses every checked identity can go
 undetected; the plugin cannot promise identity continuity in that case.
-Core serializes calls on one handle; separate handles can operate concurrently.
+Herdr serializes complete input operations per Tab across Core and bound Host calls;
+separate Tabs can operate concurrently. Screen reads can proceed during pending input.
 
 ## Development and verification
 
