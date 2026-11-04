@@ -7,34 +7,28 @@ import {
 } from "issue-runner-core/terminal";
 import { record } from "../herdr/client.ts";
 
-async function globalInstallation(modules: string): Promise<boolean> {
+async function globalInstallation(root: string): Promise<boolean> {
+  const modules = path.dirname(root);
   try {
-    const core = await realpath(path.join(modules, "issue-runner-core"));
-    const publicEntry = await realpath(
-      fileURLToPath(import.meta.resolve("issue-runner-core/terminal")),
-    );
-    if (
-      path.dirname(core) !== modules ||
-      !publicEntry.startsWith(`${core}${path.sep}`)
-    )
+    if ((await realpath(path.join(modules, "issue-runner-herdr"))) !== root)
       return false;
     const manifest: unknown = JSON.parse(
-      await readFile(path.join(core, "package.json"), "utf8"),
+      await readFile(path.join(root, "package.json"), "utf8"),
     );
     if (
       !record(manifest) ||
-      manifest.name !== "issue-runner-core" ||
+      manifest.name !== "issue-runner-herdr" ||
       !record(manifest.bin) ||
-      typeof manifest.bin["issue-runner"] !== "string"
+      typeof manifest.bin["issue-runner-herdr"] !== "string"
     )
       return false;
     const cli = await realpath(
-      path.resolve(core, manifest.bin["issue-runner"]),
+      path.resolve(root, manifest.bin["issue-runner-herdr"]),
     );
-    if (!cli.startsWith(`${core}${path.sep}`)) return false;
+    if (!cli.startsWith(`${root}${path.sep}`)) return false;
     for (const launcher of [
-      path.join(path.dirname(modules), "issue-runner.cmd"),
-      path.resolve(modules, "../../bin/issue-runner"),
+      path.join(path.dirname(modules), "issue-runner-herdr.cmd"),
+      path.resolve(modules, "../../bin/issue-runner-herdr"),
     ]) {
       try {
         let destination = launcher;
@@ -79,7 +73,7 @@ export async function discover(
     throw error;
   }
   try {
-    if (!(await globalInstallation(modules))) return undefined;
+    if (!(await globalInstallation(root))) return undefined;
     const installed = await realpath(sibling);
     if (path.dirname(installed) !== modules)
       throw new Error("enhancement must be installed in the same npm prefix");

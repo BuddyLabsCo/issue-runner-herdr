@@ -1,7 +1,6 @@
 {
   "name": "issue-runner-herdr",
   "version": "0.0.0-dev.1",
-  "private": true,
   "description": "Herdr 0.9.5 terminal plugin for Issue Runner Core contract v1",
   "type": "module",
   "main": "./dist/index.js",
@@ -32,16 +31,18 @@
     "test": "node --test \"tests/**/*.test.*\"",
     "test:package": "node --test tests/package/artifact.test.ts"
   },
-  "peerDependencies": {
-    "issue-runner-core": "0.0.0-contract.1"
-  },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "22.18.0",
     "eslint": "10.10.0",
-    "issue-runner-core": "file:issue-runner-core-contract.1.tgz",
     "prettier": "3.9.6",
     "typescript": "6.0.3",
     "typescript-eslint": "8.70.0"
+  },
+  "bin": {
+    "issue-runner-herdr": "./dist/cli.js"
+  },
+  "dependencies": {
+    "issue-runner-core": "0.0.0-contract.1"
   }
 }

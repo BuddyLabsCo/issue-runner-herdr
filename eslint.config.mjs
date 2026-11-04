@@ -8,8 +8,9 @@ const productionImports = [
     message: "Production code must not depend on tests.",
   },
   {
-    regex: "^issue-runner-core(?:$|/(?!terminal$))",
-    message: "Use only the public issue-runner-core/terminal contract.",
+    regex: "^issue-runner-core(?:$|/(?!(?:terminal|cli)$))",
+    message:
+      "Use only the public issue-runner-core/terminal and issue-runner-core/cli APIs.",
   },
 ];
 

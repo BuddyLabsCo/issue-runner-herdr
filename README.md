@@ -1,12 +1,47 @@
 # issue-runner-herdr
 
-Herdr terminal execution environment plugin for
+Herdr command and terminal execution plugin for
 [issue-runner-core](https://github.com/BuddyLabsCo/issue-runner-core).
 
 The plugin provides Core terminal contract version 1 for
 **Herdr 0.9.5**. It exports only `contractVersion = 1` and the asynchronous
 `createTerminalPlugin(config?)` from the ESM package `issue-runner-herdr`.
 Types come from the packaged `issue-runner-core/terminal` public contract.
+
+## Install and run
+
+Install Herdr globally to receive its exact tested Core runtime transitively.
+A release requires `issue-runner-core@0.0.0-contract.1` to be available in your registry.
+For unpublished candidates, use the [local artifact workflow](#development-artifacts).
+
+```sh
+npm install --global issue-runner-herdr
+issue-runner-herdr --help
+issue-runner-herdr --version
+issue-runner-herdr init --project my-project
+```
+
+Help, version and init work without a live Herdr pane. Version output identifies
+both packages: `issue-runner-herdr 0.0.0-dev.1 (core 0.0.0-contract.1)`.
+Init creates `my-project/config.yaml` and three prompts beneath your working
+directory, refusing existing destinations. Edit those files and set the configured
+credentials before running from a live Herdr pane:
+
+```sh
+issue-runner-herdr run --project my-project --issue 36
+```
+
+The command selects Herdr; `--env` is unsupported. Core owns arguments, help,
+configuration lookup, signals, workflows, reports, recovery identity and exit status.
+Herdr's executable calls the public `runCli` API once with its command name,
+package version and lazy terminal module. Importing `issue-runner-herdr` runs
+neither the CLI nor Herdr initialization. Core invokes the factory only when a Run
+passes its startup validation; the factory then performs the existing read-only
+host-context preflight.
+
+Custom global prefixes, including paths containing spaces, are supported. Invoke
+the installed launcher in that prefix or add its executable directory to PATH.
+Project-local, npx and mixed-prefix product installations are unsupported.
 
 ## Responsibilities
 
@@ -118,8 +153,14 @@ Already delivered input cannot be retracted. Abort preserves the tab and Agent;
 
 ## Optional enhancements
 
-Install `issue-runner-agent-${agent}` globally in the same npm prefix as Herdr and Core.
-Discovery follows the installation's Core global launcher and real sibling package locations, including portable relocation. npm on PATH and its active prefix do not select the enhancement location.
+Install `issue-runner-agent-${agent}` separately in Herdr's global npm prefix.
+For example, `npm install --global issue-runner-agent-codex` enables the configured
+`codex` Agent; use the same `--prefix` for custom installations. Codex is optional
+and is not a Herdr dependency.
+Discovery validates the executing Herdr package, its declared executable and the
+matching same-prefix launcher, including Unix symlinks, Windows shims and relocation.
+Core may be nested under Herdr; its dependency placement does not select the
+prefix. npm on PATH and its active prefix do not select the enhancement location.
 Herdr treats `agent` as an opaque package-name suffix. Invalid package identifiers have no match.
 Discovery excludes Project-local packages, other prefixes, and caches, and rejects package or entry links that escape containment.
 Missing packages preserve base execution and ignore retained private settings. Discovery also runs when configuration is omitted.
@@ -260,33 +301,66 @@ npm run build
 npm test
 ```
 
-The checked-in `issue-runner-core-contract.1.tgz` is the Core contract-only
-development artifact installed by the lockfile. It is a prerequisite for
-typechecking, not a project-local product installation or a published Runner.
+The checked-in `issue-runner-core-contract.1.tgz` contains the full Core runtime,
+public CLI API, declarations, templates, prompts and handoff skill. Its historical
+filename does not describe its contents. The lockfile resolves the exact Core
+runtime version to this artifact for development; `npm ci` installs it cleanly.
+The release manifest contains only the exact runtime version, with no peer
+requirement or local artifact path.
 Source tests use Node's built-in TypeScript support; the plugin build emits
 JavaScript and a public declaration that imports Core's public types.
 
 ## Development artifacts
 
-Create a tarball from this checkout:
+`npm pack` builds a release-shaped package with the public module, executable,
+declarations and documentation. Only the root terminal module is exported;
+transport helpers, source files and test fixtures remain private.
+
+To test unpublished Core without changing release metadata, pack a disposable
+Herdr copy with the local Core tarball as its runtime dependency. This POSIX shell
+recipe creates a consumable candidate in the checkout:
 
 ```sh
 npm ci
-npm pack
+npm run build
+artifact_root="$PWD"
+candidate=$(mktemp -d)
+cp -R dist README.md package.json "$candidate/"
+CORE_TARBALL="$artifact_root/issue-runner-core-contract.1.tgz" \
+  node --input-type=module - "$candidate/package.json" <<'JS'
+import { readFileSync, writeFileSync } from "node:fs";
+const file = process.argv[2];
+const manifest = JSON.parse(readFileSync(file, "utf8"));
+manifest.dependencies["issue-runner-core"] = `file:${process.env.CORE_TARBALL}`;
+writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+JS
+(cd "$candidate" && npm pack --ignore-scripts --pack-destination "$artifact_root")
+rm -rf "$candidate"
 ```
 
-`npm pack` builds automatically and writes
-`issue-runner-herdr-0.0.0-dev.1.tgz`. The package contains built JavaScript,
-the public `dist/index.d.ts`, and package documentation/metadata. Only the root
-module is exported; transport helpers, source files, test fixtures and a testing
-entry are not public APIs. It has no executable and no third-party runtime
-dependencies. Core is a peer dependency and supplies the declaration types.
-
-For a manual development import, create an empty temporary consumer with its
-own `package.json`, then run there, replacing both absolute artifact paths:
+The candidate references this checkout's absolute Core artifact path; retain it
+while installing. Regenerate the candidate after moving the checkout. The
+candidate substitution is for development only and must not be published.
+Install only Herdr into an empty global prefix, then optionally install unchanged Codex:
 
 ```sh
-npm install --omit=dev --ignore-scripts "/absolute/path/issue-runner-core-contract.1.tgz" "/absolute/path/issue-runner-herdr-0.0.0-dev.1.tgz"
+npm install --global --prefix "/tmp/herdr candidate" \
+  "$PWD/issue-runner-herdr-0.0.0-dev.1.tgz"
+"/tmp/herdr candidate/bin/issue-runner-herdr" --version
+npm install --global --prefix "/tmp/herdr candidate" \
+  "$PWD/issue-runner-agent-codex-0.0.0-dev.1.tgz"
+```
+
+On Windows, npm puts `issue-runner-herdr.cmd` directly under the prefix.
+The automated package check performs candidate packing and native launcher
+verification on both CI platforms. It installs no separate top-level Core and
+uses ordinary npm dependency resolution for Codex's unchanged optional peer.
+
+For a manual development import, install the candidate into an empty temporary
+consumer and run there:
+
+```sh
+npm install --omit=dev --ignore-scripts "/absolute/path/issue-runner-herdr-0.0.0-dev.1.tgz"
 node --input-type=module -e "import('issue-runner-herdr').then(m => console.log(m.contractVersion))"
 ```
 
@@ -317,16 +391,24 @@ Run the automated isolated-consumer check separately with:
 npm run test:package
 ```
 
-It packs the plugin, installs it and the supplied Core artifact into a
-temporary directory containing spaces, and resolves the plugin from that
-directory. The consumer installs only these artifacts and Core's transitive
-dependencies, with installation scripts disabled. Base execution uses no enhancement; enhanced start and resume use a generic fixture without the real Codex package.
-Core's transitive dependencies may require npm registry access.
-A development TypeScript compiler checks the installed declarations against `TerminalPluginModule` with no checkout types in the consumer.
-An independent consumer process checks the exports, configured asynchronous
-factory, all five operations, start/resume refs, and five-argument submission
-with default and explicit Enter against the private Herdr protocol substitute.
-No public test API is added. Temporary artifacts are removed afterward.
+It copies the built package, substitutes the full Core runtime tarball, packs the
+copy and installs only Herdr globally into a disposable prefix containing spaces.
+It relocates the prefix and invokes native launchers from an unrelated directory.
+Help, combined versions, init overwrite protection, configuration lookup and run
+validation require no live Herdr context. A consumer typecheck uses installed
+Core and Herdr declarations, without checkout types.
+
+Public consumer operations exercise base startup/resume and the existing generic
+enhancement lifecycle through the private Herdr protocol substitute. Afterward,
+the test installs the unchanged Codex tarball into the same prefix with ordinary
+npm resolution. Codex's own invalid-option error proves that Herdr discovers and
+invokes the actual factory without starting Codex or modifying trust. Version
+output must still identify the intended Core runtime. This load check does not
+claim live Codex readiness, trust or recovery acceptance.
+
+Core and Codex transitive dependencies may require npm registry access. Tests
+remove temporary installations. Exact input artifacts, reproduction steps and
+executed results are recorded in [candidate verification](docs/candidate-verification.md).
 
 The complete `npm test` suite includes this package check. The existing Ubuntu
 and Windows CI jobs run checks, build and the suite under Node 22.18.0/npm 11.6.2.
@@ -373,18 +455,11 @@ and macOS execution have not been performed here.
 
 ## Product installation status
 
-The intended product installation is Core and the selected plugin installed
-globally in the same active npm environment/prefix, with Core owning the single
-`issue-runner` executable. Project-local, npx, mixed-prefix, and automatic
-installation flows are outside the agreed support policy. Core owns plugin
-discovery; this package does not implement a loader or automatic installer.
-The supplied Core artifact contains the public contract only, not the Runner.
-It enables development verification before a complete Core product is available.
+Herdr owns `issue-runner-herdr` and installs its exact Core runtime dependency.
+Herdr also discovers optional enhancements beside its own global installation.
+Core owns shared CLI and workflow policy. The package is publishable metadata-wise,
+but this development candidate has not been published and requires the exact Core
+version to be available before release.
 
-The plugin is currently marked private and versioned as a development artifact.
-Packing and simulated consumer checks do not publish either package, reserve or
-claim availability of their candidate registry names, or validate a joint product
-installation. No registry release, real Herdr/Agent acceptance, or executed macOS
-test result is claimed.
-
+No registry release, real Herdr/Agent acceptance or executed macOS result is claimed.
 See [the protocol mapping](docs/herdr-protocol.md) for the pinned source evidence.

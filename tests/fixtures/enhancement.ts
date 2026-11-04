@@ -109,24 +109,26 @@ export async function installedPlugin(
       name: "issue-runner-herdr",
       type: "module",
       exports: "./src/index.js",
+      bin: { "issue-runner-herdr": "./src/cli.js" },
     }),
   );
+  await writeFile(join(pluginRoot, "src/cli.js"), "export {};\n");
   await cp(
     new URL("../../node_modules/issue-runner-core", import.meta.url),
-    join(modules, "issue-runner-core"),
+    join(pluginRoot, "node_modules/issue-runner-core"),
     { recursive: true },
   );
   if (installation === "global" || installation === "global-windows") {
     if (process.platform === "win32" || installation === "global-windows") {
       await writeFile(
-        join(prefix, "issue-runner.cmd"),
-        '@echo off\r\nset "dp0=%~dp0"\r\nnode "%dp0%\\node_modules\\issue-runner-core\\dist\\cli.js" %*\r\n',
+        join(prefix, "issue-runner-herdr.cmd"),
+        '@echo off\r\nset "dp0=%~dp0"\r\nnode "%dp0%\\node_modules\\issue-runner-herdr\\src\\cli.js" %*\r\n',
       );
     } else {
       await mkdir(join(prefix, "bin"));
       await symlink(
-        "../lib/node_modules/issue-runner-core/dist/cli.js",
-        join(prefix, "bin/issue-runner"),
+        "../lib/node_modules/issue-runner-herdr/src/cli.js",
+        join(prefix, "bin/issue-runner-herdr"),
       );
     }
   }

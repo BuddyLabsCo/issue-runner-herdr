@@ -18,6 +18,8 @@ await test("rejects imports across architecture boundaries", async () => {
     ["src/plugin/discovery.ts", "node:child_process"],
     ["src/plugin/operations.mjs", "child_process"],
     ["src/index.mjs", "issue-runner-core/dist/terminal.js"],
+    ["src/cli.mjs", "issue-runner-core/dist/cli-entry.js"],
+    ["src/cli.mjs", "issue-runner-core/cli/testing"],
   ];
   for (const [filePath, source] of cases) {
     const [result] = await eslint.lintText(`export * from "${source}";`, {
@@ -40,6 +42,7 @@ await test("allows dependencies in the intended direction", async () => {
     ["src/plugin/discovery.ts", "node:fs/promises"],
     ["src/herdr/client.mjs", "node:net"],
     ["src/index.mjs", "issue-runner-core/terminal"],
+    ["src/cli.mjs", "issue-runner-core/cli"],
     ["tests/integration/plugin.mjs", "../../src/index.mjs"],
   ];
   for (const [filePath, source] of cases) {
