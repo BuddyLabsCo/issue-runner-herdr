@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setImmediate } from "node:timers/promises";
 import { EventEmitter, once } from "node:events";
 import { createTerminalPlugin } from "../../src/index.ts";
 import {
@@ -47,9 +48,15 @@ await test("execute sends every opaque command with Enter and resolves after sub
   assert.equal(server.requests.length, 18);
 });
 
-for (const phase of ["before execution", "target lookup", "body", "Right"]) {
+for (const phase of [
+  "before execution",
+  "target lookup",
+  "body",
+  "Right",
+  "Enter",
+]) {
   await test(
-    `abort at ${phase} prevents subsequent command input`,
+    `abort at ${phase} drops unstarted commands but completes started input`,
     { timeout: 2000 },
     async (t) => {
       const controller = new AbortController();
@@ -70,13 +77,16 @@ for (const phase of ["before execution", "target lookup", "body", "Right"]) {
         "target lookup": 5,
         body: 6,
         Right: 7,
+        Enter: 8,
       }[phase]!;
-      const script = all.slice(0, count);
+      const started = count > 5;
+      const script = started ? all : all.slice(0, count);
       if (phase !== "before execution") script[count - 1]!.waitFor = release;
       const server = await herdr((request) => {
         const step = script.shift();
         assert.ok(step, `unexpected ${request.method}`);
-        if (!script.length) gates.emit("requested");
+        if (step.waitFor || phase === "before execution")
+          gates.emit("requested");
         return step;
       });
       t.after(() => server.close());
@@ -90,13 +100,26 @@ for (const phase of ["before execution", "target lookup", "body", "Right"]) {
         signal: controller.signal,
       });
       if (phase === "before execution") controller.abort();
-      const rejected = assert.rejects(plugin.execute(tab, "command"), /abort/i);
+      let settled = false;
+      const executing = plugin.execute(tab, "command").then(
+        () => {
+          settled = true;
+        },
+        (error: unknown) => {
+          settled = true;
+          return error;
+        },
+      );
       await requested;
       controller.abort();
+      await setImmediate();
+      if (started) assert.equal(settled, false);
       gates.emit("release");
-      await rejected;
+      if (started) assert.equal(await executing, undefined);
+      else assert.match(String(await executing), /abort/i);
       await assert.rejects(plugin.execute(tab, "command"), /abort/i);
-      assert.equal(server.requests.length, count);
+      assert.equal(server.requests.length, started ? 8 : count);
+      assert.equal(script.length, 0);
     },
   );
 }
