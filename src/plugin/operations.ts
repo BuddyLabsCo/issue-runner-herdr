@@ -24,6 +24,7 @@ export function operations(
   const sessionrefs = new WeakMap<object, string | undefined>();
   const signals = new WeakMap<object, AbortSignal>();
   const recoveries = new WeakMap<object, string | undefined>();
+  const inputs = new WeakMap<object, Promise<void>>();
   const lifecycles = new WeakMap<object, ReturnType<typeof lifecycle>>();
   const closed = new WeakSet<object>();
   const invalid = new WeakSet<object>();
@@ -75,6 +76,23 @@ export function operations(
     } finally {
       signal.removeEventListener("abort", cancel);
     }
+  }
+  async function input(
+    handle: object,
+    action: (target: Target, signal: AbortSignal | undefined) => Promise<void>,
+  ) {
+    const signal = signals.get(handle);
+    signal?.throwIfAborted();
+    const pending = (inputs.get(handle) ?? Promise.resolve()).then(() =>
+      onTarget(handle, action),
+    );
+    inputs.set(
+      handle,
+      pending.catch(() => {
+        // A failed send must not block subsequent explicit input.
+      }),
+    );
+    return signal ? automatic(handle, () => pending) : pending;
   }
   async function start(
     handle: object,
@@ -165,24 +183,22 @@ export function operations(
         async submitText(text) {
           if (typeof text !== "string")
             throw new Error("submitText requires a string");
-          await onTarget(handle, (target, signal) =>
+          await input(handle, (target, signal) =>
             host.submit(target, text, submitKey, signal),
           );
         },
         async sendKeys(keys) {
           const encoded = encodeKeys(keys);
-          await onTarget(handle, (target, signal) =>
+          await input(handle, (target, signal) =>
             host.sendKeys(target, encoded, signal!),
           );
         },
         requestRecovery() {
-          return automatic(handle, () =>
-            onTarget(handle, (target, signal) => {
-              const text = recoveries.get(handle);
-              if (!text) throw new Error("No retained Core recovery wording");
-              return host.submit(target, text, submitKey, signal);
-            }),
-          );
+          return input(handle, (target, signal) => {
+            const text = recoveries.get(handle);
+            if (!text) throw new Error("No retained Core recovery wording");
+            return host.submit(target, text, submitKey, signal);
+          });
         },
       };
       try {
@@ -220,7 +236,7 @@ export function operations(
       const key = encodeSubmitKey(submitKey);
       if (typeof text !== "string")
         throw new Error("submitText requires a string");
-      await onTarget(handle, (target, signal) => {
+      await input(handle, (target, signal) => {
         recoveries.set(handle, recoveryText);
         if (expectedFile !== undefined)
           lifecycles.get(handle)?.instance?.onAssignment(expectedFile);

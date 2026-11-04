@@ -389,13 +389,24 @@ for (const cancellation of ["abort", "stop"]) {
         const host = fixture.calls[0]!.host;
         const rejected = assert.rejects(host.requestRecovery(), /abort/i);
         await requested;
+        const queuedRecovery = assert.rejects(host.requestRecovery(), /abort/i);
+        const queuedTask = assert.rejects(
+          plugin.submitText(
+            tab,
+            "Queued task",
+            undefined,
+            "/queued.json",
+            "Queued recovery",
+          ),
+          /abort/i,
+        );
         if (cancellation === "abort") controller.abort();
         else {
           fixture.controls.stop = () =>
             Promise.reject(new Error("stop failed"));
           await assert.rejects(plugin.closeTab(tab), /stop failed/);
         }
-        await rejected;
+        await Promise.all([rejected, queuedRecovery, queuedTask]);
         const count = server.requests.length;
         for (const operation of [
           () => host.requestRecovery(),

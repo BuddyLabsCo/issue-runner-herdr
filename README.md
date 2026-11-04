@@ -244,7 +244,8 @@ There is no continuous connection or restart notification: loss is detected thro
 failed, incomplete, or malformed requests and inconsistent target identities.
 A restart between successful requests that reuses every checked identity can go
 undetected; the plugin cannot promise identity continuity in that case.
-Core serializes calls on one handle; separate handles can operate concurrently.
+Herdr serializes complete input operations per Tab across Core and bound Host calls;
+separate Tabs can operate concurrently. Screen reads can proceed during pending input.
 
 ## Development and verification
 
