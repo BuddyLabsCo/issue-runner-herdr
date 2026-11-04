@@ -18,8 +18,7 @@ The initialized plugin provides five operations:
   captured at initialization; Herdr supplies the new pane's routing identities.
   Overlay keys reserved for Herdr routing are rejected.
   When a matching enhancement is installed, creation awaits its initialization/preflight before returning.
-- `start(handle, command)` submits the unchanged command with Enter, waits the
-  configured startup delay, and returns `undefined`. Core can then Probe for identity.
+- `start(handle, command)` submits the unchanged command with Enter. Base execution waits the configured startup delay and returns `undefined`; Core can then Probe for identity. Enhanced execution initializes monitoring before submission, then awaits readiness and returns the native ref.
 - `resume(handle, command, sessionref)` submits the unchanged command with Enter,
   waits the same delay, and returns the exact supplied ref without another Probe.
 - `submitText(handle, text, submitKey?, expectedFile?, recoveryText?)` sends the
@@ -47,7 +46,7 @@ cannot receive later input; other owned handles remain usable.
 Core owns Agent configuration, complete start/resume shell-command text, prompts,
 handoff acceptance, workflow retries, and workflow recovery. Herdr owns startup
 submission and timing. Optional enhancements own business-turn recovery decisions;
-Herdr transports their requested input. Enhanced start/resume readiness and successful assignment recovery remain separate work.
+Herdr transports their requested input. Exact-session enhanced resume and successful assignment recovery remain separate work.
 Creation does not launch an Agent or prove shell readiness. Submission success
 reports backend acknowledgement, not Agent acceptance. Closing invokes the
 targeted backend operation; it does not prove process or descendant exit or
@@ -97,11 +96,13 @@ Herdr does not parse Agent names or command text.
 The delay starts after body, Right, and Enter have all been acknowledged.
 Concurrent and repeated startup calls on the same owned tab reuse that startup;
 they never resend a successfully submitted command or create another terminal.
-Ordinary submission errors reject unchanged. Core controls explicit retries;
-transport loss retains the existing context invalidation and native I/O bounds.
+Enhanced start skips this delay. After preflight, it calls `startMonitoring()` without a ref and awaits observation initialization before submitting the command. It then awaits the same enhancement's `waitUntilReady()` and returns the established native ref without a Probe.
+
+Readiness errors propagate unchanged. A retry calls `waitUntilReady()` again on the same enhancement, retaining completed monitoring and command submission.
+Ordinary monitoring and submission errors also reject unchanged; a retry retains completed monitoring. Core controls explicit retries. Transport loss retains the existing context invalidation and native I/O bounds.
 
 Pass the Run's `AbortSignal` at creation to cancel startup. Abort interrupts the
-startup wait and rejects later input. If a native request is already in flight,
+startup wait, including pending enhanced monitoring or readiness, and rejects later input. Cancelled startup cannot return a late ref. If a native request is already in flight,
 it retains its five-second bound, but no subsequent input step is sent.
 Already delivered input cannot be retracted. Abort preserves the tab and Agent;
 `closeTab` remains available for explicit closure.
@@ -134,7 +135,7 @@ The factory owns cleanup when its partial initialization fails. Herdr releases i
 Explicit close waits for stop before native closure. Completed stop and close actions are not repeated; failed actions can be retried.
 Stopping one enhancement never terminates a shared Agent daemon or unrelated sessions.
 
-Protocol-substitute and installed-package tests verify these boundaries. Real Agent acceptance remains in Core's Windows base #15 and Linux enhanced #198.
+Protocol-substitute and installed-package tests verify these boundaries with a generic enhancement, including enhanced start and readiness retry. Real Agent acceptance remains in Core's Windows base #15 and Linux enhanced #198.
 
 ## Working context
 
@@ -302,7 +303,7 @@ npm run test:package
 It packs the plugin, installs it and the supplied Core artifact into a
 temporary directory containing spaces, and resolves the plugin from that
 directory. The consumer installs only these artifacts and Core's transitive
-dependencies, with installation scripts disabled and no enhancement installed.
+dependencies, with installation scripts disabled. Base execution uses no enhancement; enhanced start uses a generic fixture without the real Codex package.
 Core's transitive dependencies may require npm registry access.
 A development TypeScript compiler checks the installed declarations against `TerminalPluginModule` with no checkout types in the consumer.
 An independent consumer process checks the exports, configured asynchronous

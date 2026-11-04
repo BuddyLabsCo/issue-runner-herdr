@@ -24,12 +24,15 @@ export const contractVersion = 1;
 export const calls = [];
 export const controls = {};
 export async function createEnhancement(host, context, config) {
-  const call = { host, context, config, stops: 0 };
+  const call = { host, context, config, stops: 0, monitoring: [], readiness: 0 };
   calls.push(call);
   await controls.initialize?.(call);
   return {
-    async startMonitoring() { throw new Error("monitoring is separate work"); },
-    async waitUntilReady() { throw new Error("readiness is separate work"); },
+    async startMonitoring(ref) { call.monitoring.push(ref); await controls.monitor?.(call); },
+    async waitUntilReady() {
+      call.readiness++;
+      return controls.ready ? await controls.ready(call) : "generic-ref";
+    },
     onAssignment() { throw new Error("assignments are separate work"); },
     async stop() { call.stops++; await controls.stop?.(call); },
   };
@@ -41,12 +44,16 @@ export interface EnhancementCall {
   context: EnhancementContext;
   config: unknown;
   stops: number;
+  monitoring: (string | undefined)[];
+  readiness: number;
 }
 
 interface Fixture {
   calls: EnhancementCall[];
   controls: {
     initialize?: (call: EnhancementCall) => Promise<void>;
+    monitor?: (call: EnhancementCall) => Promise<void>;
+    ready?: (call: EnhancementCall) => Promise<string>;
     stop?: (call: EnhancementCall) => Promise<void>;
   };
 }

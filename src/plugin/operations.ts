@@ -1,4 +1,5 @@
 import type {
+  Enhancement,
   EnhancementHost,
   TerminalPlugin,
 } from "issue-runner-core/terminal";
@@ -19,6 +20,7 @@ export function operations(
 ): TerminalPlugin {
   const handles = new WeakMap<object, Target>();
   const startups = new WeakMap<object, Promise<void>>();
+  const monitoring = new WeakMap<object, Promise<void>>();
   const signals = new WeakMap<object, AbortSignal>();
   const lifecycles = new WeakMap<object, ReturnType<typeof lifecycle>>();
   const closed = new WeakSet<object>();
@@ -53,6 +55,72 @@ export function operations(
       if (error instanceof InvalidTargetError) invalid.add(handle);
       throw error;
     }
+  }
+  async function automatic<T>(handle: object, action: () => Promise<T>) {
+    const signal = signals.get(handle)!;
+    signal.throwIfAborted();
+    let cancel!: () => void;
+    const aborted = new Promise<never>((_, reject) => {
+      cancel = () => {
+        reject(new DOMException("Automatic activity aborted", "AbortError"));
+      };
+      signal.addEventListener("abort", cancel, { once: true });
+    });
+    try {
+      const result = await Promise.race([action(), aborted]);
+      signal.throwIfAborted();
+      return result;
+    } finally {
+      signal.removeEventListener("abort", cancel);
+    }
+  }
+  async function start(
+    handle: object,
+    command: string,
+    enhancement?: Enhancement,
+  ) {
+    if (!handles.has(handle)) throw new Error("Unknown or foreign tab handle");
+    if (closed.has(handle)) throw new Error("Owned tab is closed");
+    if (invalid.has(handle)) throw new Error("Owned tab target is invalid");
+    const signal = signals.get(handle);
+    signal?.throwIfAborted();
+    let startup = startups.get(handle);
+    if (!startup) {
+      startup = Promise.resolve()
+        .then(async () => {
+          if (enhancement) {
+            let observation = monitoring.get(handle);
+            if (!observation) {
+              observation = automatic(handle, () =>
+                enhancement.startMonitoring(),
+              ).catch((error: unknown) => {
+                monitoring.delete(handle);
+                throw error;
+              });
+              monitoring.set(handle, observation);
+            }
+            await observation;
+          }
+          await plugin.submitText(handle, command, "Enter");
+        })
+        .catch((error: unknown) => {
+          startups.delete(handle);
+          throw error;
+        })
+        .then(() =>
+          enhancement
+            ? undefined
+            : timers.setTimeout(agentStartDelay * 1000, undefined, { signal }),
+        );
+      startups.set(handle, startup);
+    }
+    await startup;
+    signal?.throwIfAborted();
+    const ref = enhancement
+      ? await automatic(handle, () => enhancement.waitUntilReady())
+      : undefined;
+    signal?.throwIfAborted();
+    return ref;
   }
   const plugin: TerminalPlugin = {
     async createTab(options) {
@@ -116,33 +184,12 @@ export function operations(
       return handle;
     },
     async start(handle, command) {
-      if (!handles.has(handle))
-        throw new Error("Unknown or foreign tab handle");
-      if (closed.has(handle)) throw new Error("Owned tab is closed");
-      if (invalid.has(handle)) throw new Error("Owned tab target is invalid");
-      signals.get(handle)?.throwIfAborted();
-      let startup = startups.get(handle);
-      if (!startup) {
-        startup = plugin
-          .submitText(handle, command, "Enter")
-          .catch((error: unknown) => {
-            startups.delete(handle);
-            throw error;
-          })
-          .then(() =>
-            timers.setTimeout(agentStartDelay * 1000, undefined, {
-              signal: signals.get(handle),
-            }),
-          );
-        startups.set(handle, startup);
-      }
-      await startup;
-      return undefined;
+      return start(handle, command, lifecycles.get(handle)?.instance);
     },
     async resume(handle, command, sessionref) {
       if (typeof sessionref !== "string")
         throw new Error("resume requires a sessionref string");
-      await plugin.start(handle, command);
+      await start(handle, command);
       return sessionref;
     },
     async submitText(handle, text, submitKey = "Enter") {

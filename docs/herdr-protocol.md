@@ -10,7 +10,8 @@ results from this repository.
 | Factory | `pane.current {caller_pane_id}`, `workspace.get {workspace_id}` |
 | Create | `tab.create {workspace_id, cwd, label, env, focus: false}` |
 | Target validation | `tab.get {tab_id}`, `pane.get {pane_id}` |
-| Start / resume | The same body/Right/Enter sequence below, followed by the configured startup delay |
+| Base start / resume | The same body/Right/Enter sequence below, followed by the configured startup delay |
+| Enhanced start | Initialize enhancement monitoring without a ref, send body/Right/Enter, then await enhancement readiness for the native ref; no startup delay or Probe |
 | Submit body | `pane.send_input {pane_id, text, keys: []}` |
 | Submit Right | `pane.send_input {pane_id, text: "", keys: ["right"]}` after body acknowledgement |
 | Submit chord | `pane.send_input {pane_id, text: "", keys: ["enter"]}` or `["shift+enter"]` after Right acknowledgement |
@@ -65,6 +66,7 @@ pending-request set. Timeout or transport loss can mean a mutation already
 happened; late replies cannot trigger follow-up keys or automatic replay.
 The plugin cannot undo text or keys already acknowledged by the backend.
 A Run abort stops subsequent body/key requests and interrupts the startup delay.
+It also rejects pending enhanced monitoring/readiness and prevents a late ref from reporting startup success. Readiness retries reuse the same enhancement and completed command submission.
 An in-flight native request keeps its finite deadline; cancellation neither closes
 the tab nor sends process termination input.
 
