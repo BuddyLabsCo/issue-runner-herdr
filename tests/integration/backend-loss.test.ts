@@ -52,22 +52,20 @@ await test("detected connection loss rejects another handle's pending input with
   });
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
-  const first = await plugin.createTab({
-    agent: "opaque-agent",
+  const { handle: first } = await plugin.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "First",
   });
-  const second = await plugin.createTab({
-    agent: "opaque-agent",
+  const { handle: second } = await plugin.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Second",
   });
   let pendingError: unknown;
-  const pending = plugin.submitText(first, "uncertain input").catch((error) => {
+  const pending = plugin.execute(first, "uncertain input").catch((error) => {
     pendingError = error;
   });
   await inputRequested;
@@ -77,7 +75,7 @@ await test("detected connection loss rejects another handle's pending input with
   await pending;
   const count = server.requests.length;
   for (const handle of [first, second]) {
-    await assert.rejects(plugin.submitText(handle, "no replay"), /invalidated/);
+    await assert.rejects(plugin.execute(handle, "no replay"), /invalidated/);
     await assert.rejects(plugin.closeTab(handle), /invalidated/);
   }
   assert.equal(server.requests.length, count);
@@ -113,28 +111,25 @@ await test("a scripted restart reusing native identities cannot authorize old ha
   ]);
   t.after(() => server.close());
   const previous = await createTerminalPlugin();
-  const first = await previous.createTab({
-    agent: "opaque-agent",
+  const { handle: first } = await previous.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "First",
   });
-  const second = await previous.createTab({
-    agent: "opaque-agent",
+  const { handle: second } = await previous.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Second",
   });
   await assert.rejects(
-    previous.submitText(first, "uncertain input"),
+    previous.execute(first, "uncertain input"),
     /invalidated.*pane.send_input/,
   );
   const lostCount = server.requests.length;
   await assert.rejects(
     previous.createTab({
-      agent: "opaque-agent",
       submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
@@ -143,15 +138,14 @@ await test("a scripted restart reusing native identities cannot authorize old ha
     /invalidated/,
   );
   for (const handle of [first, second]) {
-    await assert.rejects(previous.submitText(handle, "stale"), /invalidated/);
+    await assert.rejects(previous.execute(handle, "stale"), /invalidated/);
     await assert.rejects(previous.closeTab(handle), /invalidated/);
   }
   assert.equal(server.requests.length, lostCount);
 
   // The replacement backend issues the same tab, pane, and terminal IDs.
   const fresh = await createTerminalPlugin();
-  const replacement = await fresh.createTab({
-    agent: "opaque-agent",
+  const { handle: replacement } = await fresh.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
@@ -159,13 +153,13 @@ await test("a scripted restart reusing native identities cannot authorize old ha
   });
   const replacementCount = server.requests.length;
   for (const handle of [first, second]) {
-    await assert.rejects(previous.submitText(handle, "stale"), /invalidated/);
+    await assert.rejects(previous.execute(handle, "stale"), /invalidated/);
     await assert.rejects(previous.closeTab(handle), /invalidated/);
-    await assert.rejects(fresh.submitText(handle, "foreign"), /foreign/);
+    await assert.rejects(fresh.execute(handle, "foreign"), /foreign/);
     await assert.rejects(fresh.closeTab(handle), /foreign/);
   }
   assert.equal(server.requests.length, replacementCount);
-  await fresh.submitText(replacement, "fresh input");
+  await fresh.execute(replacement, "fresh input");
   await fresh.closeTab(replacement);
   assert.equal(
     server.requests.filter((request) => request.method === "pane.send_input")
@@ -206,15 +200,14 @@ await test("ordinary backend rejection leaves the owned association usable for l
   ]);
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
-  const handle = await plugin.createTab({
-    agent: "opaque-agent",
+  const { handle } = await plugin.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
   });
   await assert.rejects(
-    plugin.submitText(handle, "rejected input"),
+    plugin.execute(handle, "rejected input"),
     /pane.send_input: input_failed: PTY write rejected/,
   );
   assert.equal(
@@ -222,7 +215,7 @@ await test("ordinary backend rejection leaves the owned association usable for l
       .length,
     1,
   );
-  await plugin.submitText(handle, "later input");
+  await plugin.execute(handle, "later input");
   await plugin.closeTab(handle);
   assert.equal(
     server.requests.filter((request) => request.method === "pane.send_input")

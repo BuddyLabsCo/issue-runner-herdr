@@ -7,30 +7,13 @@ import { contextSteps, herdr } from "../fixtures/herdr.ts";
 await test("invalid Herdr configuration rejects before host initialization", async (t) => {
   const server = await herdr([]);
   t.after(() => server.close());
-  for (const config of [
-    null,
-    [],
-    false,
-    "config",
-    { agentStartDelay: -1 },
-    { agentStartDelay: NaN },
-    { agentStartDelay: Infinity },
-    { agentStartDelay: "10" },
-    { agentStartDelay: null },
-    { agentStartDelay: 2147484 },
-    { enhancements: null },
-    { enhancements: [] },
-    { enhancements: false },
-  ]) {
-    await assert.rejects(
-      createTerminalPlugin(config),
-      /terminalPlugins|agentStartDelay|enhancements/,
-    );
+  for (const config of [null, [], false, "config"]) {
+    await assert.rejects(createTerminalPlugin(config), /terminalPlugins/);
   }
   assert.deepEqual(server.requests, []);
 });
 
-await test("creation validates required Agent fields and optional Run signal before native creation", async (t) => {
+await test("creation validates submit key and optional Run signal before native creation", async (t) => {
   const server = await herdr(contextSteps());
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
@@ -38,13 +21,9 @@ await test("creation validates required Agent fields and optional Run signal bef
     cwd: process.cwd(),
     env: {},
     label: "Issue",
-    agent: "opaque",
     submitKey: "Enter",
   };
   for (const changes of [
-    { agent: undefined },
-    { agent: "" },
-    { agent: 1 },
     { submitKey: undefined },
     { submitKey: "" },
     { submitKey: "Ctrl+Enter" },
@@ -52,8 +31,23 @@ await test("creation validates required Agent fields and optional Run signal bef
   ]) {
     await assert.rejects(
       plugin.createTab({ ...valid, ...changes } as CreateTabOptions),
-      /agent|submitKey|signal/,
+      /submitKey|signal/,
     );
   }
+  assert.equal(server.requests.length, 2);
+});
+
+await test("Core-owned settings pass through without adapter interpretation", async (t) => {
+  const server = await herdr(contextSteps());
+  t.after(() => server.close());
+  const config = Object.freeze({
+    get agentStartDelay() {
+      throw new Error("Core owns delay");
+    },
+    get enhancements() {
+      throw new Error("Core owns enhancements");
+    },
+  });
+  await createTerminalPlugin(config);
   assert.equal(server.requests.length, 2);
 });

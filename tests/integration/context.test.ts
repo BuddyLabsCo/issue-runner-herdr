@@ -326,7 +326,6 @@ await test("caller-aware lookup and later creations keep the queried workspace d
     pane_id: "w2:p2",
   };
   await plugin.createTab({
-    agent: "opaque-agent",
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
@@ -344,7 +343,6 @@ await test("caller-aware lookup and later creations keep the queried workspace d
   process.env.HERDR_WORKSPACE_ID = focused.workspace_id;
   process.env.HERDR_TAB_ID = "w3:t3";
   await plugin.createTab({
-    agent: "opaque-agent",
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},

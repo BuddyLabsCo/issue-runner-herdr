@@ -21,14 +21,13 @@ for (const submitKey of ["enter", "shift+enter"]) {
     ]);
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
-    const handle = await plugin.createTab({
-      agent: "opaque-agent",
-      submitKey: "Enter",
+    const { io } = await plugin.createTab({
+      submitKey,
       cwd: process.cwd(),
       env: {},
       label: "Issue",
     });
-    await plugin.submitText(handle, text, submitKey);
+    await io.submitText(text);
     assert.equal(server.requests.length, 8);
   });
 }
@@ -46,24 +45,19 @@ for (const command of [
       ...targetSteps(),
       ...inputSteps("First prompt\n\n  keep indentation", "shift+enter"),
       ...targetSteps(),
-      ...inputSteps("Later prompt"),
+      ...inputSteps("Later prompt", "shift+enter"),
     ]);
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
-    const handle = await plugin.createTab({
-      agent: "opaque-agent",
-      submitKey: "Enter",
+    const { handle, io } = await plugin.createTab({
+      submitKey: "Shift+Enter",
       cwd: process.cwd(),
       env: {},
       label: "Fresh command tab",
     });
-    await plugin.submitText(handle, command);
-    await plugin.submitText(
-      handle,
-      "First prompt\n\n  keep indentation",
-      "shift+enter",
-    );
-    await plugin.submitText(handle, "Later prompt", "enter");
+    await plugin.execute(handle, command);
+    await io.submitText("First prompt\n\n  keep indentation");
+    await io.submitText("Later prompt");
     assert.equal(server.requests.length, 18);
   });
 }

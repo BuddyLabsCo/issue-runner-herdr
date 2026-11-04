@@ -17,7 +17,7 @@ await test("initializes from the caller and creates one owned interactive tab", 
   const server = await herdr([...contextSteps(), createStep()]);
   t.after(() => server.close());
   const plugin = await contract.createTerminalPlugin({});
-  assert.equal(contract.contractVersion, 1);
+  assert.equal(contract.contractVersion, 2);
   assert.deepEqual(Object.keys(pluginModule).sort(), [
     "contractVersion",
     "createTerminalPlugin",
@@ -26,14 +26,11 @@ await test("initializes from the caller and creates one owned interactive tab", 
   assert.deepEqual(Object.keys(plugin).sort(), [
     "closeTab",
     "createTab",
-    "resume",
-    "start",
-    "submitText",
+    "execute",
   ]);
   // Inherited workspace/focus changes must not redirect the initialized plugin.
   process.env.HERDR_WORKSPACE_ID = "w9";
-  const handle = await plugin.createTab({
-    agent: "opaque-agent",
+  const { handle } = await plugin.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: { ISSUE_RUNNER_TEST: "overlay" },
@@ -76,7 +73,6 @@ for (const { overlay, windowsEntries, caseSensitiveEntries } of [
     process.env.ReviewInheritedOnly = "retained";
     const plugin = await contract.createTerminalPlugin({});
     await plugin.createTab({
-      agent: "opaque-agent",
       submitKey: "Enter",
       cwd: process.cwd(),
       env: Object.freeze(overlay),
@@ -104,7 +100,6 @@ for (const explicit of [false, true]) {
       "inherited";
     const plugin = await contract.createTerminalPlugin({});
     await plugin.createTab({
-      agent: "opaque-agent",
       submitKey: "Enter",
       cwd: process.cwd(),
       env: explicit ? { fish_handle_reflow: "0" } : {},
@@ -182,15 +177,13 @@ await test("independent handles can submit concurrently without target crossover
   });
   t.after(() => server.close());
   const plugin = await contract.createTerminalPlugin({});
-  const first = await plugin.createTab({
-    agent: "opaque-agent",
+  const { handle: first } = await plugin.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "First",
   });
-  const second = await plugin.createTab({
-    agent: "opaque-agent",
+  const { handle: second } = await plugin.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
@@ -198,8 +191,8 @@ await test("independent handles can submit concurrently without target crossover
   });
   assert.notEqual(first, second);
   await Promise.all([
-    plugin.submitText(first, "first"),
-    plugin.submitText(second, "second"),
+    plugin.execute(first, "first"),
+    plugin.execute(second, "second"),
   ]);
   assert.equal(
     server.requests.filter((request) => request.method === "pane.send_input")
@@ -235,19 +228,18 @@ await test("completes the public lifecycle and closes only the owned native tab"
   ]);
   t.after(() => server.close());
   const plugin = await contract.createTerminalPlugin({});
-  const handle = await plugin.createTab({
-    agent: "opaque-agent",
+  const { handle } = await plugin.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
   });
-  await plugin.submitText(handle, "echo done");
+  await plugin.execute(handle, "echo done");
   await plugin.closeTab(handle);
   const count = server.requests.length;
   await plugin.closeTab(handle);
   await assert.rejects(
-    plugin.submitText(handle, "again"),
+    plugin.execute(handle, "again"),
     /closed|absent|invalid/i,
   );
   assert.equal(server.requests.length, count);
@@ -266,14 +258,13 @@ await test("submits complete LF text then Right and the selected chord to the re
   ]);
   t.after(() => server.close());
   const plugin = await contract.createTerminalPlugin({});
-  const handle = await plugin.createTab({
-    agent: "opaque-agent",
-    submitKey: "Enter",
+  const { handle, io } = await plugin.createTab({
+    submitKey: "Shift+Enter",
     cwd: process.cwd(),
     env: {},
     label: "Issue",
   });
   process.env.HERDR_PANE_ID = "w9:p9";
-  await plugin.submitText(handle, "codex resume session-4");
-  await plugin.submitText(handle, text, "Shift+Enter");
+  await plugin.execute(handle, "codex resume session-4");
+  await io.submitText(text);
 });

@@ -3,7 +3,7 @@
 ```text
 /
 |-- src/                       # Command entry, public exports and plugin assembly
-|   |-- plugin/                # Configuration, discovery, enhancement lifecycle; tab ownership and operation ordering
+|   |-- plugin/                # Configuration boundary, tab ownership, bound I/O and operation ordering
 |   `-- herdr/                 # Host context, native targets, protocol encoding, transport, timeouts
 |-- tests/
 |   |-- unit/                  # Validation and key mapping
@@ -22,11 +22,11 @@ public module -> plugin/ -> herdr/ -> Herdr server
 
 - Public exports: `contractVersion` and `createTerminalPlugin`; consume types from `issue-runner-core/terminal`.
 - Keep handles, target associations, and each Tab's enhancement inside its plugin instance; keep transport and test seams private.
-- Discover optional enhancements only beside the globally installed plugin, anchored by the canonical executing Herdr package, its declared executable and matching same-prefix launcher; Core may be nested. Package filesystem checks belong in `plugin/discovery.ts`; native I/O belongs in `herdr/`.
-- The executable in `src/cli.ts` calls only the public `issue-runner-core/cli` entry with command identity and the lazy terminal module. Importing the public terminal module never invokes the CLI.
-- Core owns shared CLI policy, workflow, Agent configuration, retries, handoff acceptance and workflow recovery.
-- The plugin layer owns startup progress, delay and Run cancellation per tab; native I/O retains finite bounds.
-- Optional enhancements own business-turn recovery decisions; Herdr transports their requested input through Core's bound Host contract.
-- Await enhancement preflight before returning a created Tab. Abort stops automatic activity while retaining the terminal; explicit close awaits enhancement stop before native close.
+- Core owns enhancement discovery, lifecycle, preflight, monitoring, startup delays, readiness, session identity, Assignment notification and recovery. Herdr neither imports enhancements nor interprets `terminalPlugins.agentStartDelay` or `terminalPlugins.enhancements`.
+- The executable in `src/cli.ts` calls only the public `issue-runner-core/cli` entry with command identity, lazy terminal module, real executing terminal package location and CLI entry identity. Core validates the installation and discovers enhancements. Importing the public terminal module never invokes the CLI.
+- Core owns shared CLI policy, workflows, Agent configuration, retries, handoff acceptance and workflow recovery.
+- `createTab` returns `{ handle, io }` after native creation; `execute` submits an opaque command. Bound `read`, `submitText` and `sendKeys` retain the same owned target. Capture and validate the submit key at creation.
+- The plugin owns one input queue per tab and its revocation signal. Command, text and key operations share the queue; reads stay outside it. Native I/O retains identity checks and finite bounds. Preserve queue-start and between-step cancellation until the separate input cancellation change.
+- Explicit close works after revocation, closes only the owned target and never invokes enhancement cleanup.
 - Keep helpers beside their owner. Add directories when needed, not as empty scaffolding.
 - Run `npm run check` for formatting, lint and types; `npm test` checks the quality rules.

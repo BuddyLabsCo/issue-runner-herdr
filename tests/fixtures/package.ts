@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import {
   cp,
@@ -27,6 +28,20 @@ export async function installCandidate(consumer: string) {
     dependencies: Record<string, string>;
     peerDependencies?: unknown;
   };
+  const lock = JSON.parse(
+    await readFile(join(root, "package-lock.json"), "utf8"),
+  ) as {
+    packages: Record<string, { integrity: string; resolved: string }>;
+  };
+  const pinned = lock.packages["node_modules/issue-runner-core"]!;
+  assert.equal(pinned.resolved, "file:issue-runner-core-contract.1.tgz");
+  assert.equal(
+    pinned.integrity,
+    "sha512-" +
+      createHash("sha512")
+        .update(await readFile(join(root, "issue-runner-core-contract.1.tgz")))
+        .digest("base64"),
+  );
   assert.equal(release.private, undefined);
   assert.equal(release.peerDependencies, undefined);
   assert.deepEqual(release.dependencies, {
@@ -113,6 +128,17 @@ export async function installCandidate(consumer: string) {
     "skills/issue-runner-handoff/SKILL.md",
   ])
     assert.ok((await readFile(join(core, file))).length > 0, file);
+  for (const file of [
+    "dist/terminal.js",
+    "dist/terminal.d.ts",
+    "dist/cli-entry.js",
+    "dist/cli-entry.d.ts",
+  ])
+    assert.deepEqual(
+      await readFile(join(core, file)),
+      await readFile(join(root, "node_modules/issue-runner-core", file)),
+      "Installed candidate and checkout must use the same Core build: " + file,
+    );
   const manifest = JSON.parse(
     await readFile(join(installed, "package.json"), "utf8"),
   ) as { exports: object };
