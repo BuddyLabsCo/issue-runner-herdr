@@ -36,6 +36,9 @@ export function lifecycle(runSignal?: AbortSignal) {
   runSignal?.addEventListener("abort", cancel, { once: true });
   if (runSignal?.aborted) cancel();
   return {
+    get instance() {
+      return instance;
+    },
     signal: controller.signal,
     stop,
     async initialize(

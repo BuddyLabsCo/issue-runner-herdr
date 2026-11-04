@@ -172,6 +172,8 @@ void enhancement;
 import assert from "node:assert/strict";
 export const contractVersion = 1;
 export let stopped = false;
+export let monitoring = 0;
+export let readiness = 0;
 export async function createEnhancement(host, context, config) {
   assert.equal(context.cwd, process.cwd());
   assert.deepEqual(context.env, { GENERIC: "context" });
@@ -181,8 +183,8 @@ export async function createEnhancement(host, context, config) {
   await host.sendKeys(["Escape", "Shift+Enter"]);
   await assert.rejects(host.requestRecovery(), /retained Core recovery/);
   return {
-    async startMonitoring() { throw new Error("not part of preflight"); },
-    async waitUntilReady() { throw new Error("not part of preflight"); },
+    async startMonitoring(ref) { assert.equal(ref, undefined); monitoring++; },
+    async waitUntilReady() { assert.equal(monitoring, 1); readiness++; return "packaged native ref"; },
     onAssignment() { throw new Error("not part of preflight"); },
     async stop() { stopped = true; await assert.rejects(host.submitText("late"), /abort/); }
   };
@@ -198,6 +200,11 @@ import * as fixture from ${JSON.stringify(pathToFileURL(join(enhancement, "index
 const terminal = await createTerminalPlugin({ enhancements: { shared: { option: true }, other: ["kept"] } });
 const tab = await terminal.createTab({ cwd: process.cwd(), env: { GENERIC: "context" }, label: "Global enhancement", agent: "generic", submitKey: "Shift+Enter" });
 assert.equal(fixture.stopped, false);
+assert.equal(fixture.monitoring, 0);
+assert.equal(await terminal.start(tab, "generic-agent --configured"), "packaged native ref");
+assert.equal(await terminal.start(tab, "must not be replayed"), "packaged native ref");
+assert.equal(fixture.monitoring, 1);
+assert.equal(fixture.readiness, 2);
 await terminal.closeTab(tab);
 assert.equal(fixture.stopped, true);
 await terminal.closeTab(tab);
@@ -324,6 +331,8 @@ await resumer.closeTab(resumed);
       result: { type: "ok" },
     },
     ...targetSteps(),
+    ...targetSteps(),
+    ...inputSteps("generic-agent --configured"),
     ...targetSteps(),
     {
       method: "tab.list",
