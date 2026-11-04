@@ -271,8 +271,7 @@ Public consumers exercise bound I/O, opaque commands, creation-time submit keys 
 Core dependencies may require npm registry access. Tests remove temporary installations.
 
 The complete `npm test` suite includes this package check. The existing Ubuntu
-and Windows CI jobs run checks, build and the suite under Node 22.18.0/npm 11.6.2
-and Node 24.18.0/npm 12.2.0.
+and Windows CI jobs run checks, build and the suite under Node 22.18.0/npm 11.6.2.
 These local artifact installs are development and CI verification, not an
 additional supported product installation mode.
 
