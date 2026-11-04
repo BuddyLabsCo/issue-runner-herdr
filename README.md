@@ -20,7 +20,8 @@ The initialized plugin provides five operations:
   When a matching enhancement is installed, creation awaits its initialization/preflight before returning.
 - `start(handle, command)` submits the unchanged command with Enter. Base execution waits the configured startup delay and returns `undefined`; Core can then Probe for identity. Enhanced execution initializes monitoring before submission, then awaits readiness and returns the native ref.
 - `resume(handle, command, sessionref)` submits the unchanged command with Enter,
-  waits the same delay, and returns the exact supplied ref without another Probe.
+  then returns the exact supplied ref without another Probe. Base execution waits
+  the startup delay; enhanced execution monitors the supplied ref and awaits readiness.
 - `submitText(handle, text, submitKey?, expectedFile?, recoveryText?)` sends the
   complete canonical-LF body in one generic `pane.send_input` request, then sends Right and the selected
   logical chord in separate requests, awaiting acknowledgement at each step.
@@ -46,7 +47,7 @@ cannot receive later input; other owned handles remain usable.
 Core owns Agent configuration, complete start/resume shell-command text, prompts,
 handoff acceptance, workflow retries, and workflow recovery. Herdr owns startup
 submission and timing. Optional enhancements own business-turn recovery decisions;
-Herdr transports their requested input. Exact-session enhanced resume and successful assignment recovery remain separate work.
+Herdr transports their requested input. Successful assignment recovery remains separate work.
 Creation does not launch an Agent or prove shell readiness. Submission success
 reports backend acknowledgement, not Agent acceptance. Closing invokes the
 targeted backend operation; it does not prove process or descendant exit or
@@ -97,6 +98,8 @@ The delay starts after body, Right, and Enter have all been acknowledged.
 Concurrent and repeated startup calls on the same owned tab reuse that startup;
 they never resend a successfully submitted command or create another terminal.
 Enhanced start skips this delay. After preflight, it calls `startMonitoring()` without a ref and awaits observation initialization before submitting the command. It then awaits the same enhancement's `waitUntilReady()` and returns the established native ref without a Probe.
+
+Enhanced resume also skips the delay. After preflight, it calls `startMonitoring(sessionref)` with the exact supplied ref and awaits observation initialization before submitting the command unchanged. It awaits `waitUntilReady()` and returns the supplied ref only when readiness reports that same identity. A conflicting observed ref rejects without adoption. Retries must use the original startup identity.
 
 Readiness errors propagate unchanged. A retry calls `waitUntilReady()` again on the same enhancement, retaining completed monitoring and command submission.
 Ordinary monitoring and submission errors also reject unchanged; a retry retains completed monitoring. Core controls explicit retries. Transport loss retains the existing context invalidation and native I/O bounds.
@@ -303,7 +306,7 @@ npm run test:package
 It packs the plugin, installs it and the supplied Core artifact into a
 temporary directory containing spaces, and resolves the plugin from that
 directory. The consumer installs only these artifacts and Core's transitive
-dependencies, with installation scripts disabled. Base execution uses no enhancement; enhanced start uses a generic fixture without the real Codex package.
+dependencies, with installation scripts disabled. Base execution uses no enhancement; enhanced start and resume use a generic fixture without the real Codex package.
 Core's transitive dependencies may require npm registry access.
 A development TypeScript compiler checks the installed declarations against `TerminalPluginModule` with no checkout types in the consumer.
 An independent consumer process checks the exports, configured asynchronous
@@ -325,6 +328,8 @@ targeting, concurrent handles, closure, failures, and finite timeout behavior.
 Focused unit tests cover chord defaulting, case-insensitive mapping, and rejection.
 Startup tests cover unchanged commands, concurrent and repeated calls, exact refs,
 default and explicit delays after submission, and cancellation between input steps.
+Enhanced resume tests cover exact-ref monitoring and readiness, conflicting refs,
+readiness retries without command replay, cancellation, and per-Tab isolation.
 Submission tests check subsequent prompts with independently selected chords.
 Isolation tests hold scripted replies to force out-of-order creation and
 overlapping submit/close operations, and use separate socket substitutes with

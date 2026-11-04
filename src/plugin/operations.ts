@@ -21,6 +21,7 @@ export function operations(
   const handles = new WeakMap<object, Target>();
   const startups = new WeakMap<object, Promise<void>>();
   const monitoring = new WeakMap<object, Promise<void>>();
+  const sessionrefs = new WeakMap<object, string | undefined>();
   const signals = new WeakMap<object, AbortSignal>();
   const lifecycles = new WeakMap<object, ReturnType<typeof lifecycle>>();
   const closed = new WeakSet<object>();
@@ -78,12 +79,16 @@ export function operations(
     handle: object,
     command: string,
     enhancement?: Enhancement,
+    sessionref?: string,
   ) {
     if (!handles.has(handle)) throw new Error("Unknown or foreign tab handle");
     if (closed.has(handle)) throw new Error("Owned tab is closed");
     if (invalid.has(handle)) throw new Error("Owned tab target is invalid");
     const signal = signals.get(handle);
     signal?.throwIfAborted();
+    if (sessionrefs.has(handle) && sessionrefs.get(handle) !== sessionref)
+      throw new Error("Startup sessionref cannot change on an owned tab");
+    if (enhancement) sessionrefs.set(handle, sessionref);
     let startup = startups.get(handle);
     if (!startup) {
       startup = Promise.resolve()
@@ -92,7 +97,7 @@ export function operations(
             let observation = monitoring.get(handle);
             if (!observation) {
               observation = automatic(handle, () =>
-                enhancement.startMonitoring(),
+                enhancement.startMonitoring(sessionref),
               ).catch((error: unknown) => {
                 monitoring.delete(handle);
                 throw error;
@@ -189,7 +194,12 @@ export function operations(
     async resume(handle, command, sessionref) {
       if (typeof sessionref !== "string")
         throw new Error("resume requires a sessionref string");
-      await start(handle, command);
+      const enhancement = lifecycles.get(handle)?.instance;
+      const ref = await start(handle, command, enhancement, sessionref);
+      if (enhancement && ref !== sessionref)
+        throw new Error(
+          "Enhancement readiness conflicts with the resume sessionref",
+        );
       return sessionref;
     },
     async submitText(handle, text, submitKey = "Enter") {
