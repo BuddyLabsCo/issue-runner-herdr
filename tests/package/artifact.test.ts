@@ -5,6 +5,7 @@ import {
   mkdir,
   readFile,
   readdir,
+  realpath,
   rename,
   rm,
   writeFile,
@@ -26,7 +27,10 @@ const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../../", import.meta.url));
 
 await test("installed artifact conforms to Core composite startup in a consumer with spaces", async (t) => {
-  const consumer = await mkdtemp(join(tmpdir(), "herdr package consumer "));
+  // Match discovery's canonical paths so Windows temp aliases share one module instance.
+  const consumer = await realpath(
+    await mkdtemp(join(tmpdir(), "herdr package consumer ")),
+  );
   t.after(() => rm(consumer, { recursive: true, force: true }));
   const artifacts = join(consumer, "artifacts");
   await mkdir(artifacts);

@@ -4,6 +4,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   symlink,
   writeFile,
@@ -54,7 +55,10 @@ export async function installedPlugin(
   installation:
     "global" | "global-windows" | "project" | "project-lib" = "global",
 ) {
-  const prefix = await mkdtemp(join(tmpdir(), "herdr global prefix "));
+  // Match discovery's canonical paths so Windows temp aliases share one module instance.
+  const prefix = await realpath(
+    await mkdtemp(join(tmpdir(), "herdr global prefix ")),
+  );
   const modules = join(
     prefix,
     ...(process.platform === "win32" ||
