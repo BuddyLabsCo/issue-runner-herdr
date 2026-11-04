@@ -37,8 +37,7 @@ for (const lookup of [
     ]);
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
-    const handle = await plugin.createTab({
-      agent: "opaque-agent",
+    const { handle } = await plugin.createTab({
       submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
@@ -72,8 +71,7 @@ for (const context of [
     ]);
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
-    const handle = await plugin.createTab({
-      agent: "opaque-agent",
+    const { handle } = await plugin.createTab({
       submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
@@ -112,8 +110,7 @@ for (const tabs of [
     ]);
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
-    const handle = await plugin.createTab({
-      agent: "opaque-agent",
+    const { handle } = await plugin.createTab({
       submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
@@ -124,7 +121,7 @@ for (const tabs of [
       /malformed|ambiguous|unresolved/,
     );
     await assert.rejects(plugin.closeTab(handle), /invalid/);
-    await assert.rejects(plugin.submitText(handle, "no"), /invalid/);
+    await assert.rejects(plugin.execute(handle, "no"), /invalid/);
     assert.equal(server.requests.length, 6);
   });
 }
@@ -144,8 +141,7 @@ for (const lookup of [
     ]);
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
-    const handle = await plugin.createTab({
-      agent: "opaque-agent",
+    const { handle } = await plugin.createTab({
       submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
@@ -180,8 +176,7 @@ for (const code of ["close_failed", "not_found", "tab_not_found"]) {
     ]);
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
-    const handle = await plugin.createTab({
-      agent: "opaque-agent",
+    const { handle } = await plugin.createTab({
       submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
@@ -192,7 +187,7 @@ for (const code of ["close_failed", "not_found", "tab_not_found"]) {
       new RegExp(`tab.close: ${code}: close not established`),
     );
     assert.equal(server.requests.length, 7);
-    await plugin.submitText(handle, "still live");
+    await plugin.execute(handle, "still live");
     assert.equal(server.requests.length, 12);
   });
 }
@@ -255,15 +250,13 @@ for (const externallyClosed of [false, true]) {
     const server = await herdr(setup);
     t.after(() => server.close());
     const plugin = await createTerminalPlugin();
-    const first = await plugin.createTab({
-      agent: "opaque-agent",
+    const { handle: first } = await plugin.createTab({
       submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
       label: "First",
     });
-    const second = await plugin.createTab({
-      agent: "opaque-agent",
+    const { handle: second } = await plugin.createTab({
       submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
@@ -272,9 +265,9 @@ for (const externallyClosed of [false, true]) {
     await plugin.closeTab(first);
     const count = server.requests.length;
     await plugin.closeTab(first);
-    await assert.rejects(plugin.submitText(first, "no"), /closed/);
+    await assert.rejects(plugin.execute(first, "no"), /closed/);
     assert.equal(server.requests.length, count);
-    await plugin.submitText(second, "other Issue remains usable");
+    await plugin.execute(second, "other Issue remains usable");
     assert.deepEqual(
       server.requests
         .filter((request) => request.method === "tab.close")

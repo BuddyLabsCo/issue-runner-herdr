@@ -10,13 +10,12 @@ results from this repository.
 | Factory | `pane.current {caller_pane_id}`, `workspace.get {workspace_id}` |
 | Create | `tab.create {workspace_id, cwd, label, env, focus: false}` |
 | Target validation | `tab.get {tab_id}`, `pane.get {pane_id}` |
-| Base start / resume | The same body/Right/Enter sequence below, followed by the configured startup delay |
-| Enhanced start | Initialize enhancement monitoring without a ref, send body/Right/Enter, then await enhancement readiness for the native ref; no startup delay or Probe |
+| Execute | Target validation, then the complete command body/Right/Enter sequence below |
 | Submit body | `pane.send_input {pane_id, text, keys: []}` |
 | Submit Right | `pane.send_input {pane_id, text: "", keys: ["right"]}` after body acknowledgement |
 | Submit chord | `pane.send_input {pane_id, text: "", keys: ["enter"]}` or `["shift+enter"]` after Right acknowledgement |
-| Host read | Target validation, then `pane.read {pane_id, source: "visible", format: "text", strip_ansi: true}` |
-| Host logical keys | Target validation, then one ordered `pane.send_input {pane_id, text: "", keys: [chord]}` per chord, without Right |
+| Bound read | Target validation, then `pane.read {pane_id, source: "visible", format: "text", strip_ansi: true}` |
+| Bound logical keys | Target validation, then one ordered `pane.send_input {pane_id, text: "", keys: [chord]}` per chord, without Right |
 | Close | Target validation, `tab.list {workspace_id}`, `tab.close {tab_id}` |
 | Confirm absent after `tab.get` returns `tab_not_found` | `pane.get {pane_id: captured Runner pane}`, `tab.list {workspace_id}`; no close request |
 
@@ -48,14 +47,14 @@ line submissions, or rewritten newline characters. Body, Right, and the final
 chord use separate, sequential requests so rejection or timeout stops later
 steps. Sending them together would dispatch the keys before body acknowledgement.
 
-The optional public `submitKey` string names one chord, mapped case-insensitively
-to `enter` (the default) or `shift+enter`. Other chords, whitespace, key scripts,
-and raw backend encodings reject locally before target queries or input. The
+The required creation-time `submitKey` string names one chord, mapped case-insensitively
+to `enter` or `shift+enter`. Other chords, whitespace, key scripts,
+and raw backend encodings reject locally before tab creation. The
 mapping stays private to the Herdr adapter. The first request carries the complete
 unchanged canonical-LF text with no keys; each subsequent request carries empty
-text and one key. Commands and prompts use the same operation
-in separate calls; Core supplies complete start/resume text and chooses each
-call's final chord.
+text and one key. Commands always use Enter; bound text uses the creation-time
+submit key. A shared per-tab queue preserves ordering across command, text
+and logical-key operations.
 
 Every request has a total five-second deadline covering connection, writing,
 and receipt of a complete reply, including partial replies. Backend errors
@@ -65,16 +64,17 @@ success. A settled request clears its timer, destroys its socket, and leaves the
 pending-request set. Timeout or transport loss can mean a mutation already
 happened; late replies cannot trigger follow-up keys or automatic replay.
 The plugin cannot undo text or keys already acknowledged by the backend.
-A Run abort stops subsequent body/key requests and interrupts the startup delay.
-It also rejects pending enhanced monitoring/readiness and prevents a late ref from reporting startup success. Readiness retries reuse the same enhancement and completed command submission.
+A Run abort stops subsequent body/key requests, including queued input.
+Core owns startup delays, monitoring, readiness and recovery.
 An in-flight native request keeps its finite deadline; cancellation neither closes
 the tab nor sends process termination input.
 
-Enhancement Host reads request the visible text snapshot, never recent output or ANSI format.
+Bound reads request the visible text snapshot, never recent output or ANSI format.
 The adapter validates the returned pane, tab, workspace, source, format, and text before returning it.
-Host keys validate the entire array before querying or sending. Shift+Enter stays one chord.
+Bound keys validate the entire array before querying or sending. Shift+Enter stays one chord.
 The adapter checks cancellation before every key; abort prevents remaining input after an in-flight request settles.
-Enhancement stop precedes native close and does not send any native process-termination request.
+Explicit native close remains usable after revocation. Core owns enhancement
+cleanup; the adapter does not invoke it.
 
 Herdr's targeted `tab.close` closes the workspace when the tab is its last one.
 The plugin lists the captured workspace's tabs before closing and refuses that

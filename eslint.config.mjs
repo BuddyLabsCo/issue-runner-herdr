@@ -68,24 +68,6 @@ export default defineConfig(
     },
   },
   {
-    files: ["src/plugin/discovery.ts"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            ...productionImports,
-            {
-              regex:
-                "^(node:)?(net|tls|http|https|http2|dns|dgram|child_process|cluster|worker_threads|readline|tty)(/|$)",
-              message: "Only package discovery filesystem I/O belongs here.",
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
     files: ["src/herdr/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
     rules: {
       "no-restricted-imports": [

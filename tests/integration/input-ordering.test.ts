@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { EventEmitter, once } from "node:events";
 import test from "node:test";
-import { installedPlugin } from "../fixtures/enhancement.ts";
+import { createTerminalPlugin } from "../../src/index.ts";
 import {
   contextSteps,
   createStep,
@@ -15,17 +15,14 @@ import {
 const options = {
   cwd: process.cwd(),
   env: {},
-  label: "Ordered recovery",
-  agent: "generic",
+  label: "Ordered input",
   submitKey: "Shift+Enter",
 };
 
 await test(
-  "recovery and subsequent Core/Host input finish in order while another Tab remains usable",
+  "command, bound text and keys share one queue while another Tab remains usable",
   { timeout: 5000 },
   async (t) => {
-    const installed = await installedPlugin();
-    const fixture = await (await installed.install()).fixture();
     const events = new EventEmitter();
     const requested = once(events, "requested");
     const release = once(events, "release");
@@ -68,7 +65,7 @@ await test(
           },
         };
       assert.equal(request.method, "pane.send_input");
-      if (request.params.text === "Old recovery") {
+      if (request.params.text === "Bound text") {
         events.emit("requested");
         return {
           method: request.method,
@@ -79,30 +76,16 @@ await test(
       return { method: request.method, result: { type: "ok" } };
     });
     t.after(() => server.close());
-    t.after(() => installed.close());
-    const plugin = await installed.plugin.createTerminalPlugin({});
-    const first = await plugin.createTab(options);
-    const second = await plugin.createTab(options);
-    await plugin.submitText(
-      first,
-      "Old task",
-      undefined,
-      "/old.json",
-      "Old recovery",
-    );
-    const host = fixture.calls[0]!.host;
-    const recovering = host.requestRecovery();
+    const plugin = await createTerminalPlugin({});
+    const { handle: first, io: host } = await plugin.createTab(options);
+    const { handle: second } = await plugin.createTab(options);
+    await plugin.execute(first, "Old task");
+    const submittingText = host.submitText("Bound text");
     await requested;
-    const submitting = plugin.submitText(
-      first,
-      "New task",
-      undefined,
-      "/new.json",
-      "New recovery",
-    );
+    const submitting = plugin.execute(first, "New task");
     const marker = host.submitText("Marker");
     const keys = host.sendKeys(["Escape"]);
-    await plugin.submitText(second, "Independent task");
+    await plugin.execute(second, "Independent task");
     const waiting = server.requests
       .filter(
         (request) =>
@@ -110,14 +93,12 @@ await test(
           request.params.pane_id === pane.pane_id,
       )
       .map((request) => request.params);
-    const assignmentsWhileWaiting = [...fixture.calls[0]!.assignments];
     events.emit("release");
-    await Promise.all([recovering, submitting, marker, keys]);
+    await Promise.all([submittingText, submitting, marker, keys]);
     assert.deepEqual(waiting, [
       ...inputSteps("Old task").map((step) => step.params),
-      { pane_id: pane.pane_id, text: "Old recovery", keys: [] },
+      { pane_id: pane.pane_id, text: "Bound text", keys: [] },
     ]);
-    assert.deepEqual(assignmentsWhileWaiting, [["/old.json"]]);
     assert.deepEqual(
       server.requests
         .filter(
@@ -128,7 +109,7 @@ await test(
         .map((request) => request.params),
       [
         ...inputSteps("Old task").map((step) => step.params),
-        ...inputSteps("Old recovery", "shift+enter").map((step) => step.params),
+        ...inputSteps("Bound text", "shift+enter").map((step) => step.params),
         ...inputSteps("New task").map((step) => step.params),
         ...inputSteps("Marker", "shift+enter").map((step) => step.params),
         { pane_id: pane.pane_id, text: "", keys: ["escape"] },
@@ -138,11 +119,9 @@ await test(
 );
 
 await test(
-  "recovery waits for pending Core input and reads the latest wording without blocking screen reads",
+  "bound text waits for pending command input without blocking screen reads",
   { timeout: 5000 },
   async (t) => {
-    const installed = await installedPlugin();
-    const fixture = await (await installed.install()).fixture();
     const events = new EventEmitter();
     const requested = once(events, "requested");
     const release = once(events, "release");
@@ -175,7 +154,7 @@ await test(
       },
       ...task.slice(1),
       ...targetSteps(),
-      ...inputSteps("Latest recovery", "shift+enter"),
+      ...inputSteps("Bound text", "shift+enter"),
     ];
     const server = await herdr((request) => {
       const step = script.shift();
@@ -184,32 +163,80 @@ await test(
       return step;
     });
     t.after(() => server.close());
-    t.after(() => installed.close());
-    const plugin = await installed.plugin.createTerminalPlugin({});
-    const tab = await plugin.createTab(options);
-    await plugin.submitText(
-      tab,
-      "Old task",
-      undefined,
-      "/old.json",
-      "Old recovery",
-    );
-    const submitting = plugin.submitText(
-      tab,
-      "New task",
-      undefined,
-      "/new.json",
-      "Latest recovery",
-    );
+    const plugin = await createTerminalPlugin({});
+    const { handle: tab, io: host } = await plugin.createTab(options);
+    await plugin.execute(tab, "Old task");
+    const submitting = plugin.execute(tab, "New task");
     await requested;
-    const host = fixture.calls[0]!.host;
-    const recovering = host.requestRecovery();
+    const submittingText = host.submitText("Bound text");
     assert.equal(await host.read(), "Current screen");
     events.emit("release");
-    await Promise.all([submitting, recovering]);
-    assert.deepEqual(fixture.calls[0]!.assignments, [
-      ["/old.json"],
-      ["/new.json"],
-    ]);
+    await Promise.all([submitting, submittingText]);
+    assert.equal(script.length, 0);
+  },
+);
+
+await test(
+  "revocation rejects queued input and retains explicit close",
+  { timeout: 5000 },
+  async (t) => {
+    const events = new EventEmitter();
+    const requested = once(events, "requested");
+    const release = once(events, "release");
+    t.after(() => {
+      events.emit("release");
+    });
+    const controller = new AbortController();
+    const body = inputSteps("started")[0]!;
+    body.waitFor = release;
+    const script = [
+      ...contextSteps(),
+      createStep(),
+      ...targetSteps(),
+      body,
+      ...targetSteps(),
+      {
+        method: "tab.list",
+        result: {
+          type: "tab_list",
+          tabs: [
+            { workspace_id: "w1", tab_id: "w1:t1" },
+            { workspace_id: "w1", tab_id: "w1:t2" },
+          ],
+        },
+      },
+      {
+        method: "tab.close",
+        params: { tab_id: "w1:t2" },
+        result: { type: "ok" },
+      },
+    ];
+    const server = await herdr((request) => {
+      const step = script.shift();
+      assert.ok(step, `unexpected ${request.method}`);
+      if (step.waitFor) events.emit("requested");
+      return step;
+    });
+    t.after(() => server.close());
+    const plugin = await createTerminalPlugin();
+    const { handle, io } = await plugin.createTab({
+      ...options,
+      signal: controller.signal,
+    });
+    const started = assert.rejects(plugin.execute(handle, "started"), /abort/i);
+    await requested;
+    const queued = [
+      assert.rejects(plugin.execute(handle, "queued command"), /abort/i),
+      assert.rejects(io.submitText("queued text"), /abort/i),
+      assert.rejects(io.sendKeys(["Escape", "Enter"]), /abort/i),
+    ];
+    controller.abort();
+    await Promise.all([started, ...queued]);
+    await assert.rejects(io.read(), /abort/i);
+    assert.equal(server.requests.length, 6);
+    events.emit("release");
+    await plugin.closeTab(handle);
+    await plugin.closeTab(handle);
+    assert.equal(script.length, 0);
   },
 );

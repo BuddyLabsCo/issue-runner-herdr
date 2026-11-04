@@ -95,14 +95,13 @@ for (const [index, fault] of lifecycle.entries()) {
         let settled = false;
         async function run() {
           const plugin = await createTerminalPlugin();
-          const handle = await plugin.createTab({
-            agent: "opaque-agent",
+          const { handle } = await plugin.createTab({
             submitKey: "Enter",
             cwd: process.cwd(),
             env: {},
             label: "Issue",
           });
-          await plugin.submitText(handle, "once\n\n  \u4e2d\u6587 $HOME");
+          await plugin.execute(handle, "once\n\n  \u4e2d\u6587 $HOME");
           await plugin.closeTab(handle);
         }
         const rejected = assert.rejects(

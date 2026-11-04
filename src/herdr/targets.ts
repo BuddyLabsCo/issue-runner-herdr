@@ -249,8 +249,8 @@ export async function initialize() {
         throw error;
       }
     },
-    async read(owned: Target, signal: AbortSignal) {
-      signal.throwIfAborted();
+    async read(owned: Target, signal?: AbortSignal) {
+      signal?.throwIfAborted();
       const result = await client.request(
         "pane.read",
         {
@@ -261,7 +261,7 @@ export async function initialize() {
         },
         "pane_read",
       );
-      signal.throwIfAborted();
+      signal?.throwIfAborted();
       const read = result.read;
       if (
         !record(read) ||
@@ -280,11 +280,11 @@ export async function initialize() {
     async sendKeys(
       owned: Target,
       keys: readonly string[],
-      signal: AbortSignal,
+      signal?: AbortSignal,
     ) {
       try {
         for (const key of keys) {
-          signal.throwIfAborted();
+          signal?.throwIfAborted();
           await client.request(
             "pane.send_input",
             { pane_id: owned.pane, text: "", keys: [key] },

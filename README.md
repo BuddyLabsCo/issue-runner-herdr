@@ -3,8 +3,8 @@
 Herdr command and terminal execution plugin for
 [issue-runner-core](https://github.com/BuddyLabsCo/issue-runner-core).
 
-The plugin provides Core terminal contract version 1 for
-**Herdr 0.9.5**. It exports only `contractVersion = 1` and the asynchronous
+The plugin provides Core terminal contract version 2 for
+**Herdr 0.9.5**. It exports only `contractVersion = 2` and the asynchronous
 `createTerminalPlugin(config?)` from the ESM package `issue-runner-herdr`.
 Types come from the packaged `issue-runner-core/terminal` public contract.
 
@@ -34,7 +34,7 @@ issue-runner-herdr run --project my-project --issue 36
 The command selects Herdr; `--env` is unsupported. Core owns arguments, help,
 configuration lookup, signals, workflows, reports, recovery identity and exit status.
 Herdr's executable calls the public `runCli` API once with its command name,
-package version and lazy terminal module. Importing `issue-runner-herdr` runs
+package version, lazy terminal module, real executing package location and CLI entry identity. Core validates that installation identity and discovers enhancements. Importing `issue-runner-herdr` runs
 neither the CLI nor Herdr initialization. Core invokes the factory only when a Run
 passes its startup validation; the factory then performs the existing read-only
 host-context preflight.
@@ -45,154 +45,35 @@ Project-local, npx and mixed-prefix product installations are unsupported.
 
 ## Responsibilities
 
-The initialized plugin provides five operations:
+The initialized plugin exposes `createTab`, `execute`, and `closeTab`:
 
-- `createTab({ cwd, env, label, agent, submitKey, signal? })` creates one native
-  tab with an interactive shell and records its root pane. `cwd` must be an existing absolute directory.
-  The explicit string environment overlay is applied over Runner's environment
-  captured at initialization; Herdr supplies the new pane's routing identities.
-  Overlay keys reserved for Herdr routing are rejected.
-  When a matching enhancement is installed, creation awaits its initialization/preflight before returning.
-- `start(handle, command)` submits the unchanged command with Enter. Base execution waits the configured startup delay and returns `undefined`; Core can then Probe for identity. Enhanced execution initializes monitoring before submission, then awaits readiness and returns the native ref.
-- `resume(handle, command, sessionref)` submits the unchanged command with Enter,
-  then returns the exact supplied ref without another Probe. Base execution waits
-  the startup delay; enhanced execution monitors the supplied ref and awaits readiness.
-- `submitText(handle, text, submitKey?, expectedFile?, recoveryText?)` sends the
-  complete canonical-LF body in one generic `pane.send_input` request, then sends Right and the selected
-  logical chord in separate requests, awaiting acknowledgement at each step.
-  Omission defaults to Enter; `"enter"` and `"shift+enter"` are
-  supported case-insensitively, including `"Enter"` and `"Shift+Enter"`.
-  Unsupported values reject before input.
-  Text is not split, normalized, interpreted as argv, or escaped as shell code.
-- `closeTab(handle)` awaits enhancement stop, then closes only the native tab recorded for that owned handle.
-  A failed stop prevents native closure; either failure rejects and allows an explicit retry.
-  Foreign and invalid handles reject. A known absent or previously closed tab
-  closes successfully; repeated close after established success makes no backend
-  requests. Closing the last tab is refused because Herdr would also remove the
-  host workspace.
+- `createTab({ cwd, env, label, submitKey, signal? })` returns `{ handle, io }` after creating one interactive native tab and recording its root pane. It validates and captures the submit key before native creation. Creation does not launch a command or initialize an enhancement.
+- `execute(handle, command)` submits the complete opaque command, Right, then Enter. It resolves after input acknowledgement. Each call submits its command; Herdr does not deduplicate commands, substitute session references, wait for readiness, or wait for process exit.
+- `closeTab(handle)` closes only the owned native tab. Known absence and repeated successful closure are harmless. Native failures reject and permit an explicit retry. Closure remains usable after revocation and does not invoke enhancement cleanup. Herdr refuses to close the workspace's last tab.
 
-A `tab_not_found` lookup alone does not establish safe absence. The plugin also
-revalidates the captured Runner pane's workspace, tab, pane and terminal identity,
-then requires an unambiguous workspace tab list containing the Runner tab and
-excluding the owned tab. Missing context, contradictory or malformed lists,
-generic not-found errors, transport errors and ordinary backend close failures
-reject rather than claim closure. A handle established to be closed or absent
-cannot receive later input; other owned handles remain usable.
+Handles belong to one plugin instance; native identifiers stay private. Bound `io.read()`, `io.submitText(text)`, and `io.sendKeys(keys)` use the same recorded target as `execute` and `closeTab`. They work with or without an optional creation signal.
 
-Core owns Agent configuration, complete start/resume shell-command text, prompts,
-handoff acceptance, workflow retries, and workflow recovery. Herdr owns startup
-submission and timing. Optional enhancements own business-turn recovery decisions;
-Herdr transports their requested input. Successful assignment recovery remains separate work.
-Creation does not launch an Agent or prove shell readiness. Submission success
-reports backend acknowledgement, not Agent acceptance. Closing invokes the
-targeted backend operation; it does not prove process or descendant exit or
-writer settlement.
+A `tab_not_found` lookup alone does not establish safe absence. Herdr revalidates the captured Runner pane's identity and requires an unambiguous workspace tab list containing Runner and excluding the owned tab. Missing context, contradictory lists, transport errors and ordinary close failures reject. A changed root pane invalidates the handle permanently; Herdr never adopts its replacement.
+
+Core owns enhancement discovery and lifecycle, preflight, monitoring, startup delays, readiness, session identity, Assignment notification and recovery wording. Enhancements request recovery for an originating Assignment through Core. Herdr transports opaque commands and input without interpreting those concepts.
 
 ## Submission semantics
 
-`submitKey` remains an optional string describing one logical submission chord.
-Only Enter and Shift+Enter are supported. Whitespace, multiple-key scripts,
-raw escape sequences, backend commands, and other chords reject locally before
-target queries or body dispatch. Rejection does not fall back to another chord
-or omit the mandatory Right key.
+Creation requires `submitKey`: Enter or Shift+Enter, case-insensitively. Whitespace, scripts, raw escape sequences and other submit chords reject before native creation. Changing the caller's options later does not change the captured key.
 
-Every call preserves the complete text, including LF, Chinese/Unicode, blank
-lines, indentation, quotes, and literal shell-looking characters. The request
-contains the unchanged body and no keys. After acknowledgement, the plugin
-sends empty text with `["right"]`, then empty text with `["enter"]` or
-`["shift+enter"]`, awaiting each reply. A failed or uncertain body prevents both
-keys; a failed or uncertain Right prevents the final chord. A failed final
-chord rejects without resending the body or Right. The plugin does not rewrite
-LF to CR or send each line separately.
+`io.submitText(text)` sends the unchanged complete string in one `pane.send_input` request, then Right, then the creation-time chord. `execute` always uses Enter. Neither operation splits, normalizes, substitutes, escapes or interprets the text. Unicode, LF, indentation, blank lines and shell-looking characters remain literal.
 
-Core supplies complete commands to `start` or `resume` for a fresh tab. Herdr
-always uses Enter for commands, regardless of the Agent's creation-time key.
-Later prompts use `submitText(handle, prompt, "shift+enter")` or an omitted key
-for Enter. Core passes assignment context with
-`submitText(handle, prompt, submitKey?, expectedFile?, recoveryText?)`.
-Before input begins, Herdr retains that submission's `recoveryText` and synchronously
-calls the enhancement's `onAssignment(expectedFile)` when a path is supplied.
-It forwards the exact path without normalization, including repeated paths for
-continuations. New paths replace the enhancement's expectation. Notification errors
-reject the submission before task input. Base submission works without an enhancement;
-Core still validates handoffs independently. Herdr performs no identity Probe.
+Each step awaits acknowledgement. A failed body prevents both keys; a failed Right prevents submission. A failed final chord rejects without replay. Success reports backend acknowledgement, not Agent acceptance or process completion.
 
-## Startup configuration and cancellation
+`io.sendKeys(keys)` validates and translates the complete ordered logical chord sequence before sending any key. `io.read()` requests the current visible plain-text screen with ANSI stripping and validates its response identity and shape. It provides neither scrollback nor streaming.
 
-Pass the complete `terminalPlugins` object to `createTerminalPlugin`. Omission
-or `{}` defaults `agentStartDelay` to ten seconds and `enhancements` to `{}`:
+Commands, text and keys share one queue per tab. Reads stay outside that queue; other tabs remain independent. Failed sends do not poison subsequent explicit input.
 
-```js
-const terminal = await createTerminalPlugin({
-  agentStartDelay: 10,
-  enhancements: { retainedPrivateSetting: true },
-});
-```
+## Configuration and cancellation
 
-`agentStartDelay` accepts finite non-negative seconds, including zero and
-fractions, up to Node's timer limit of 2,147,483,647 milliseconds. `enhancements`
-must be an object. Its private contents are ignored during base execution.
-Creation requires a nonempty opaque `agent` string and a supported `submitKey`.
-Herdr does not parse Agent names or command text.
+The factory retains its `unknown` configuration boundary and requires an object. Core owns `terminalPlugins.agentStartDelay` and `terminalPlugins.enhancements`, including their defaults and validation. Herdr does not inspect those values or load enhancement packages.
 
-The delay starts after body, Right, and Enter have all been acknowledged.
-Concurrent and repeated startup calls on the same owned tab reuse that startup;
-they never resend a successfully submitted command or create another terminal.
-Enhanced start skips this delay. After preflight, it calls `startMonitoring()` without a ref and awaits observation initialization before submitting the command. It then awaits the same enhancement's `waitUntilReady()` and returns the established native ref without a Probe.
-
-Enhanced resume also skips the delay. After preflight, it calls `startMonitoring(sessionref)` with the exact supplied ref and awaits observation initialization before submitting the command unchanged. It awaits `waitUntilReady()` and returns the supplied ref only when readiness reports that same identity. A conflicting observed ref rejects without adoption. Retries must use the original startup identity.
-
-Readiness errors propagate unchanged. A retry calls `waitUntilReady()` again on the same enhancement, retaining completed monitoring and command submission.
-Ordinary monitoring and submission errors also reject unchanged; a retry retains completed monitoring. Core controls explicit retries. Transport loss retains the existing context invalidation and native I/O bounds.
-
-Pass the Run's `AbortSignal` at creation to cancel startup. Abort interrupts the
-startup wait, including pending enhanced monitoring or readiness, and rejects later input. Cancelled startup cannot return a late ref. If a native request is already in flight,
-it retains its five-second bound, but no subsequent input step is sent.
-Already delivered input cannot be retracted. Abort preserves the tab and Agent;
-`closeTab` remains available for explicit closure.
-
-## Optional enhancements
-
-Install `issue-runner-agent-${agent}` separately in Herdr's global npm prefix.
-For example, `npm install --global issue-runner-agent-codex` enables the configured
-`codex` Agent; use the same `--prefix` for custom installations. Codex is optional
-and is not a Herdr dependency.
-Discovery validates the executing Herdr package, its declared executable and the
-matching same-prefix launcher, including Unix symlinks, Windows shims and relocation.
-Core may be nested under Herdr; its dependency placement does not select the
-prefix. npm on PATH and its active prefix do not select the enhancement location.
-Herdr treats `agent` as an opaque package-name suffix. Invalid package identifiers have no match.
-Discovery excludes Project-local packages, other prefixes, and caches, and rejects package or entry links that escape containment.
-Missing packages preserve base execution and ignore retained private settings. Discovery also runs when configuration is omitted.
-An installed package with invalid exports, an incompatible Core enhancement version, a missing dependency, or failed initialization rejects creation.
-
-Each created Tab receives one enhancement and one portable `EnhancementHost` from Core's public contract.
-The factory receives the Tab's `cwd` and environment overlay, plus the entire `enhancements` object unchanged, defaulting to `{}`.
-Creation awaits preflight without starting an Agent. The Host exposes four operations:
-
-- `read()` returns the current visible screen as text, excluding scrollback and terminal control sequences
-- `submitText(text)` sends the complete body, Right, and the Agent's creation-time submit chord
-- `sendKeys(keys)` validates all logical chords before input, then sends them in array order without an added Right or submit chord
-- `requestRecovery()` submits the current Core recovery wording unchanged, using the Agent's creation-time submit chord
-
-Recovery sends the full body, Right, then the captured submit chord, in that order.
-Missing or empty recovery wording rejects. Each Core submission replaces the retained
-wording; omitting it clears previous wording. The enhancement receives only the exact
-expected path, never task text or recovery wording. Its marker and recovery input
-do not register assignments or replace retained wording.
-
-Every Host operation checks the Tab's captured target identity. Enhancements need no native IDs, sockets, or Herdr environment variables.
-Logical keys include Enter, Shift+Enter, Escape, Tab, Backspace, arrows, printable characters, and backend-supported modifier combinations.
-Invalid key scripts and raw control bytes reject before input.
-
-Run abort or stop cancels pending automatic recovery and rejects later sends while preserving the Tab and Agent.
-Already delivered input cannot be retracted.
-If abort occurs during factory initialization, Herdr stops the returned instance before rejecting creation.
-The factory owns cleanup when its partial initialization fails. Herdr releases its own cancellation resources and revokes Host input.
-Explicit close waits for stop before native closure. Completed stop and close actions are not repeated; failed actions can be retried.
-Stopping one enhancement never terminates a shared Agent daemon or unrelated sessions.
-
-Protocol-substitute and installed-package tests verify these boundaries with a generic enhancement, including enhanced start, readiness retry, and assignment recovery. Real Agent acceptance remains in Core's Windows base #15 and Linux enhanced #198.
+The optional creation `signal` revokes automatic I/O. Input checks cancellation before entering the queue and again when its turn starts. This migration preserves cancellation between native input steps; allowing an already-started sequence to finish belongs to the subsequent input cancellation ticket. Native requests retain finite transport bounds. Cancellation retains the tab for inspection or explicit closure.
 
 ## Working context
 
@@ -293,7 +174,7 @@ separate Tabs can operate concurrently. Screen reads can proceed during pending 
 Use Node.js **22.18 or later within 22.x** and npm **11.x**:
 
 ```sh
-npm ci
+npm ci --ignore-scripts
 npm run typecheck
 node --test tests/integration/lifecycle.test.ts
 npm run check
@@ -321,7 +202,7 @@ Herdr copy with the local Core tarball as its runtime dependency. This POSIX she
 recipe creates a consumable candidate in the checkout:
 
 ```sh
-npm ci
+npm ci --ignore-scripts
 npm run build
 artifact_root="$PWD"
 candidate=$(mktemp -d)
@@ -341,20 +222,7 @@ rm -rf "$candidate"
 The candidate references this checkout's absolute Core artifact path; retain it
 while installing. Regenerate the candidate after moving the checkout. The
 candidate substitution is for development only and must not be published.
-Install only Herdr into an empty global prefix, then optionally install unchanged Codex:
-
-```sh
-npm install --global --prefix "/tmp/herdr candidate" \
-  "$PWD/issue-runner-herdr-0.0.0-dev.1.tgz"
-"/tmp/herdr candidate/bin/issue-runner-herdr" --version
-npm install --global --prefix "/tmp/herdr candidate" \
-  "$PWD/issue-runner-agent-codex-0.0.0-dev.1.tgz"
-```
-
-On Windows, npm puts `issue-runner-herdr.cmd` directly under the prefix.
-The automated package check performs candidate packing and native launcher
-verification on both CI platforms. It installs no separate top-level Core and
-uses ordinary npm dependency resolution for Codex's unchanged optional peer.
+The automated package check installs only Herdr, with Core nested beneath it, then relocates the prefix. It verifies the native launcher from an unrelated directory. No Agent package is needed for adapter checks.
 
 For a manual development import, install the candidate into an empty temporary
 consumer and run there:
@@ -364,7 +232,7 @@ npm install --omit=dev --ignore-scripts "/absolute/path/issue-runner-herdr-0.0.0
 node --input-type=module -e "import('issue-runner-herdr').then(m => console.log(m.contractVersion))"
 ```
 
-This imports the installed artifact by package name and prints `1`; it needs no
+This imports the installed artifact by package name and prints `2`; it needs no
 Herdr server until the factory is invoked. From a valid inherited Herdr context,
 consumers use the same public module:
 
@@ -372,17 +240,15 @@ consumers use the same public module:
 import { createTerminalPlugin } from "issue-runner-herdr";
 
 const terminal = await createTerminalPlugin();
-const tab = await terminal.createTab({
+const { handle, io } = await terminal.createTab({
   cwd: process.cwd(),
   env: {},
   label: "Issue",
-  agent: "configured-agent",
   submitKey: "Shift+Enter",
 });
-const sessionref = await terminal.start(tab, "configured-agent-command");
-// Core performs its identity Probe when sessionref is undefined.
-await terminal.submitText(tab, "Complete the assigned task", "Shift+Enter");
-await terminal.closeTab(tab);
+await terminal.execute(handle, "configured-agent-command");
+await io.submitText("Complete the assigned task");
+await terminal.closeTab(handle);
 ```
 
 Run the automated isolated-consumer check separately with:
@@ -398,17 +264,9 @@ Help, combined versions, init overwrite protection, configuration lookup and run
 validation require no live Herdr context. A consumer typecheck uses installed
 Core and Herdr declarations, without checkout types.
 
-Public consumer operations exercise base startup/resume and the existing generic
-enhancement lifecycle through the private Herdr protocol substitute. Afterward,
-the test installs the unchanged Codex tarball into the same prefix with ordinary
-npm resolution. Codex's own invalid-option error proves that Herdr discovers and
-invokes the actual factory without starting Codex or modifying trust. Version
-output must still identify the intended Core runtime. This load check does not
-claim live Codex readiness, trust or recovery acceptance.
+Public consumers exercise bound I/O, opaque commands, creation-time submit keys and native closure through the private protocol substitute. Installed declaration checks reject the removed startup and submission APIs. The CLI check verifies the real executing package and entry identities, independent of task cwd, nested Core and active npm prefix. The pinned artifact and transferred Core coverage are recorded in [candidate verification](docs/candidate-verification.md).
 
-Core and Codex transitive dependencies may require npm registry access. Tests
-remove temporary installations. Exact input artifacts, reproduction steps and
-executed results are recorded in [candidate verification](docs/candidate-verification.md).
+Core dependencies may require npm registry access. Tests remove temporary installations.
 
 The complete `npm test` suite includes this package check. The existing Ubuntu
 and Windows CI jobs run checks, build and the suite under Node 22.18.0/npm 11.6.2.
@@ -422,11 +280,7 @@ local-socket substitute. They exercise actual UTF-8 JSON-line encoding,
 caller-context validation, creation, LF/CJK/literal text, chord ordering, owned
 targeting, concurrent handles, closure, failures, and finite timeout behavior.
 Focused unit tests cover chord defaulting, case-insensitive mapping, and rejection.
-Startup tests cover unchanged commands, concurrent and repeated calls, exact refs,
-default and explicit delays after submission, and cancellation between input steps.
-Enhanced resume tests cover exact-ref monitoring and readiness, conflicting refs,
-readiness retries without command replay, cancellation, and per-Tab isolation.
-Submission tests check subsequent prompts with independently selected chords.
+Execution tests cover repeated opaque commands, submission acknowledgement and cancellation between input steps. Bound I/O tests cover captured submit keys, ordered chords, visible output validation and revocation. Queue tests gate native replies to check input serialization, independent tabs and reads outside the queue.
 Isolation tests hold scripted replies to force out-of-order creation and
 overlapping submit/close operations, and use separate socket substitutes with
 overlapping native IDs to check instance ownership.
@@ -456,8 +310,7 @@ and macOS execution have not been performed here.
 ## Product installation status
 
 Herdr owns `issue-runner-herdr` and installs its exact Core runtime dependency.
-Herdr also discovers optional enhancements beside its own global installation.
-Core owns shared CLI and workflow policy. The package is publishable metadata-wise,
+Core discovers optional enhancements beside the executing terminal installation and owns shared CLI, orchestration and workflow policy. The package is publishable metadata-wise,
 but this development candidate has not been published and requires the exact Core
 version to be available before release.
 

@@ -73,7 +73,6 @@ await test("out-of-order creation replies keep each handle associated with its o
   let firstCompleted = false;
   const firstPending = plugin
     .createTab({
-      agent: "opaque-agent",
       submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
@@ -84,8 +83,7 @@ await test("out-of-order creation replies keep each handle associated with its o
       return handle;
     });
   await firstRequested;
-  const second = await plugin.createTab({
-    agent: "opaque-agent",
+  const { handle: second } = await plugin.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
@@ -93,10 +91,10 @@ await test("out-of-order creation replies keep each handle associated with its o
   });
   assert.equal(firstCompleted, false);
   gates.emit("release-first");
-  const first = await firstPending;
+  const { handle: first } = await firstPending;
   assert.notEqual(first, second);
-  await plugin.submitText(first, "first");
-  await plugin.submitText(second, "second");
+  await plugin.execute(first, "first");
+  await plugin.execute(second, "second");
   assert.equal(submissions.length, 0);
 });
 
@@ -149,15 +147,13 @@ await test("closing one tab overlaps another tab's submission without following 
   });
   t.after(() => server.close());
   const plugin = await createTerminalPlugin();
-  const first = await plugin.createTab({
-    agent: "opaque-agent",
+  const { handle: first } = await plugin.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
     label: "First",
   });
-  const second = await plugin.createTab({
-    agent: "opaque-agent",
+  const { handle: second } = await plugin.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
@@ -166,14 +162,14 @@ await test("closing one tab overlaps another tab's submission without following 
   process.env.HERDR_PANE_ID = "w9:p9";
   process.env.HERDR_TAB_ID = "w9:t9";
   process.env.HERDR_WORKSPACE_ID = "w9";
-  const submitting = plugin.submitText(first, "while closing");
+  const submitting = plugin.execute(first, "while closing");
   await validatingFirst;
   await Promise.all([submitting, plugin.closeTab(second)]);
   const count = server.requests.length;
   await plugin.closeTab(second);
-  await assert.rejects(plugin.submitText(second, "closed"), /closed/);
+  await assert.rejects(plugin.execute(second, "closed"), /closed/);
   assert.equal(server.requests.length, count);
-  await plugin.submitText(first, "still live");
+  await plugin.execute(first, "still live");
   assert.equal(script.length, 0);
 });
 
@@ -188,8 +184,7 @@ await test("opaque handles stay instance-owned across backends with overlapping 
   ]);
   t.after(() => firstServer.close());
   const first = await createTerminalPlugin();
-  const firstHandle = await first.createTab({
-    agent: "opaque-agent",
+  const { handle: firstHandle } = await first.createTab({
     submitKey: "Enter",
     cwd: process.cwd(),
     env: {},
@@ -212,8 +207,7 @@ await test("opaque handles stay instance-owned across backends with overlapping 
   ]);
   try {
     const second = await createTerminalPlugin();
-    const secondHandle = await second.createTab({
-      agent: "opaque-agent",
+    const { handle: secondHandle } = await second.createTab({
       submitKey: "Enter",
       cwd: process.cwd(),
       env: {},
@@ -228,7 +222,7 @@ await test("opaque handles stay instance-owned across backends with overlapping 
     ] as const) {
       for (const fabricated of [{}, { ...owned }, { ...pane }, foreign]) {
         await assert.rejects(
-          plugin.submitText(fabricated, "must not send"),
+          plugin.execute(fabricated, "must not send"),
           /Unknown or foreign/,
         );
         await assert.rejects(plugin.closeTab(fabricated), /Unknown or foreign/);
@@ -237,10 +231,10 @@ await test("opaque handles stay instance-owned across backends with overlapping 
     assert.equal(firstServer.requests.length, 3);
     assert.equal(secondServer.requests.length, 3);
     await Promise.all([
-      first.submitText(firstHandle, "first backend"),
+      first.execute(firstHandle, "first backend"),
       second.closeTab(secondHandle),
     ]);
-    await first.submitText(firstHandle, "first backend still live");
+    await first.execute(firstHandle, "first backend still live");
   } finally {
     await secondServer.close();
   }

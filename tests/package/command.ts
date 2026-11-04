@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { exec } from "../fixtures/package.ts";
@@ -142,4 +142,36 @@ export async function verifyCommand(
     ["config.yaml", "prompts"],
     "Invalid runs have no workflow or audit effects",
   );
+  // Observe the public CLI boundary after exercising the real installed runtime.
+  const coreEntry = join(
+    installed,
+    "node_modules/issue-runner-core/dist/cli-entry.js",
+  );
+  const originalEntry = await readFile(coreEntry, "utf8");
+  const packageRoot = await realpath(installed);
+  const cliEntry = await realpath(join(installed, "dist/cli.js"));
+  try {
+    await writeFile(
+      coreEntry,
+      `
+import assert from "node:assert/strict";
+import * as terminal from ${JSON.stringify(pathToFileURL(join(packageRoot, "dist/index.js")).href)};
+export async function runCli(options) {
+  assert.equal(options.commandName, "issue-runner-herdr");
+  assert.equal(options.commandVersion, ${JSON.stringify(version)});
+  assert.equal(options.terminal, terminal);
+  assert.equal(options.terminalPackageRoot, ${JSON.stringify(packageRoot)});
+  assert.equal(options.terminalCliEntry, ${JSON.stringify(cliEntry)});
+  assert.notEqual(options.terminalPackageRoot, process.cwd());
+  console.log("canonical terminal context");
+}
+`,
+    );
+    const handedOff = await run(["--help"], {
+      npm_config_prefix: join(cwd, "unrelated active prefix"),
+    });
+    assert.equal(handedOff.stdout.trim(), "canonical terminal context");
+  } finally {
+    await writeFile(coreEntry, originalEntry);
+  }
 }

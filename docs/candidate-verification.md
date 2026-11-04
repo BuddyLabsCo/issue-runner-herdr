@@ -1,117 +1,57 @@
-# Ticket 36 candidate verification
+# Ticket 39 Core contract migration
 
-This candidate gives Herdr its own command and installs the full Core runtime
-transitively. Verification uses local npm artifacts, without publication or a
-separate global Core installation.
+## Pinned source build
 
-## Input artifacts
+Fetched the remote default branch of `BuddyLabsCo/issue-runner-core` into an isolated checkout on 2026-11-05. The checkout is pinned to `1bd2c4406978b168e3726c996fe7fbdae9ced8b4`; existing Core work was untouched, and no Herdr branch was fetched or pulled.
 
-Both artifacts were built with Node 22.18.0 and npm 11.6.2 from unmodified Git
-archives. The Core checkout's existing local object supplied the completed public
-CLI implementation; no branch was fetched, pulled or changed.
+- Package: `issue-runner-core@0.0.0-contract.1`
+- Public terminal contract: `2`
+- Public enhancement contract: `2`
+- Destination: `issue-runner-core-contract.1.tgz`
+- SHA-256: `e11ddcc6900158b3f4ab3f91acc461dbd2c7f99ceb295c50c46ddced9310a65a`
+- npm integrity: `sha512-AGH/7OTvqAY0w0qD+GQ7RF8wA/1igFy1L+LRvYnUDj8A0tMwJHmu7bD5lPFWerlwI2QqEY4bmI5csFFhV0KzJg==`
 
-| Package | Source revision | Version | Artifact |
-| --- | --- | --- | --- |
-| Core | `6398a5f82acef11ccc59a30e6c75a48e608b1138` | `0.0.0-contract.1` | `issue-runner-core-contract.1.tgz` |
-| Codex | `8a5de5b578f914ddf59a83d306d2c209d7aef75e` | `0.0.0-dev.1` | `issue-runner-agent-codex-0.0.0-dev.1.tgz` |
+Followed Core's `docs/terminal-contract.md` source-build workflow: `npm ci --ignore-scripts`, `npm run typecheck`, `npm test`, then `npm pack --json --pack-destination artifacts`. Cleared the inherited `npm_config_allow_scripts` setting for installation; dependency install scripts remained disabled. Built and packed with Node 22.18.0 and npm 11.6.2. Core's full suite passed: 685 passed, 1 skipped, 0 failed.
 
-SHA-256 identities:
+The package contains 103 files, including public terminal and CLI JavaScript/declarations, runtime modules, prompts, templates, and the handoff skill. The package version is independent of both contract versions. Herdr keeps its exact runtime version dependency; only the development lockfile and disposable package-test candidate resolve the local tarball. The lockfile integrity changed with the bytes. A fresh script-disabled installation exposes terminal and enhancement contract 2, excluding reuse of the old same-named artifact.
 
-```text
-6fc6d5203744a88a134b02e05f106c44de7d871cab724c1c9dde347097b620cc  issue-runner-core-contract.1.tgz
-2bff3209bd7c1ae3030ff57e46ecb2340747f49cf3f371c1ab6a5ddc421a0493  issue-runner-agent-codex-0.0.0-dev.1.tgz
-```
+## Transferred coverage
 
-Core's npm integrity is
-`sha512-656QJkiUlD+92f1gmvI1jPOy5nUIv+VyHN5esAHTwTkJT62EmMmMnNjlRxyJycKPiDJTpp7U5OU4SXngesgrxg==`.
-Its 99 packed files include the runtime, `cli-entry.js` and declarations,
-terminal contracts, prompts, templates and handoff skill. Core exports `runCli`
-from `issue-runner-core/cli` and has no executable registration. Herdr imports
-no Core internals.
+Verified these files in the pinned Core checkout before removing Herdr's orchestration assertions. All ran in Core's passing full suite:
 
-Codex's npm integrity is
-`sha512-cO/+ezqzIKnBRCS0wOMPe32pISETJ4zbxSih9v7JoVOUjlHhKHXOIfZGTg+T98j5TOTkt8J2JcolArADprKs8g==`.
-Its optional peer remains exactly `issue-runner-core: 0.0.0-contract.1`.
-No Codex source or package metadata was patched.
+| Removed Herdr responsibility | Equivalent Core coverage |
+| --- | --- |
+| Same-prefix discovery, nested Core, launcher identity, relocated installation, invalid modules and escaping links | `tests/package/enhancements.mjs` (through `tests/package.test.mjs`), `tests/adapters/cli-enhancement-discovery.test.ts` |
+| Enhancement preflight, monitoring, readiness retries, base delay and startup deduplication | `tests/run/cli-composite-startup.test.ts` |
+| Exact native resume identity and readiness mismatch | `tests/run/cli-implementation-resume.test.ts` |
+| Abort during factory/preflight/readiness, late instances and cleanup errors | `tests/run/cli-cancellation.test.ts`, `tests/agent/conversation.test.ts` |
+| Shared cleanup attempts, retryable cleanup and independent tabs | `tests/agent/conversation.test.ts` |
+| Assignment notification and retained recovery wording | `tests/run/cli-handoff-recovery.test.ts`, `tests/agent/conversation.test.ts` |
+| Originating Assignment rather than latest wording | `tests/agent/conversation.test.ts`: “recovery retains Assignment A through adapter-delayed input before same-path Assignment B” |
+| Generic configuration validation | `tests/run/cli-validation.test.ts`, `tests/run/cli-terminal-contract.test.ts` |
 
-## Reproduce the inputs and candidate
+The originating-Assignment test gates A's actual adapter input while B is queued with the same expected path. It checks distinct IDs, drops stale A requests, and observes exactly A, recovery A, B, recovery B. Herdr retains only opaque text and ordered input. Its protocol-level identity, cancellation, output, timeout and queue assertions remain at the migrated public adapter seam.
 
-Given local repositories containing the recorded revisions, export each revision
-into a disposable build directory and run `npm ci --ignore-scripts` followed by
-`npm pack`. Packing runs that package's TypeScript build. For example, from the
-Herdr checkout using a POSIX shell:
+## Verification scope
 
-```sh
-mkdir -p node_modules/.candidate-core
-core_source=/absolute/path/to/issue-runner-core
-core_revision=6398a5f82acef11ccc59a30e6c75a48e608b1138
-git -C "$core_source" archive "$core_revision" |
-  tar -x -C node_modules/.candidate-core
-(cd node_modules/.candidate-core && npm ci --ignore-scripts && npm pack)
-cp node_modules/.candidate-core/issue-runner-core-0.0.0-contract.1.tgz \
-  issue-runner-core-contract.1.tgz
-```
+Native Windows/Linux acceptance remains Core #15 and #198. Repository checks do not establish live Herdr or Agent behavior. No CI, publication, tracker or pull request operations are part of this delivery.
 
-Repeat with Codex's recorded revision to reproduce its tarball. Keep Core's
-historical filename, and update its lockfile integrity if replacing the bytes.
-`package.json` and the lockfile root both declare the exact runtime version;
-only the development lockfile's resolved artifact location is local.
+## Herdr verification results
 
-Run `npm ci`, `npm run check`, `npm run build`, and `npm test` in Herdr.
-The [README candidate recipe](../README.md#development-artifacts) produces the
-local Herdr tarball from a disposable package copy. It changes only that copy's
-Core runtime dependency to the absolute tarball path. The release manifest has
-no local dependency path, peer dependency, version range or private restriction.
-Release still requires the exact Core version in the registry.
-
-## Delivered Herdr candidate
-
-The generated `issue-runner-herdr-0.0.0-dev.1.tgz` is retained at the checkout root
-(ignored build output). Its SHA-256 is `b79cb7913037439aa3eeefb1334f9f03c8d7fe213fa8d16d8017f614dbc20001`.
-It contains 12 files and references the Core tarball in this delivery
-worktree by absolute path. Repack using the README recipe after moving the inputs.
-
-## Verification results
-
-Executed on Linux with Node 22.18.0 and npm 11.6.2:
+Executed with Node 22.18.0 and npm 11.6.2 against the pinned artifact:
 
 | Check | Result |
 | --- | --- |
-| Clean `npm ci --ignore-scripts --no-audit --no-fund` | Passed |
-| `npm run check` | Formatting, lint and types passed |
-| `npm run build` | Passed |
-| `npm run test:package` | Passed, including unchanged Codex install/load |
-| `npm test` (one final full run) | 294 passed, 0 failed, 6 Windows-only skips |
+| Script-disabled clean dependency install | Passed; refreshed integrity and installed v2 declarations |
+| Submission TDD | Four migrated cases failed on the removed Agent requirement, then passed |
+| Bound I/O TDD | Missing optional signal failed at `read`; optional-signal fix passed |
+| Focused native, queue, validation and lifecycle tests | Passed, including cancellation and malformed screen responses |
+| Repeated `npm --allow-scripts= run typecheck` | Passed after migrating adapter and consumers |
+| `npm --allow-scripts= run check` | Formatting, lint and types passed |
+| `npm --allow-scripts= run test:package` | Passed; candidate pack/install, installed types, command identity, nested Core, relocated prefix and inert import |
+| Final `npm --allow-scripts= test` | 232 passed, 6 platform-specific skips, 0 failures; one full Herdr suite run |
 | `git diff --check` | Passed |
 
-The focused discovery regression failed before the identity change: valid
-nested-Core installations did not initialize enhancements, and broken ones
-silently fell back to base execution. All 32 discovery cases now pass, including
-Unix symlinks and simulated Windows shims, unrelated prefixes, invalid metadata,
-wrong launcher targets and escaping package, entry and executable links.
+The installed-package fixture checks the tarball against lockfile integrity and compares installed Core's public runtime/declarations with the refreshed checkout dependency. Release metadata retains its exact version dependency without candidate paths.
 
-The installed-artifact check passes on Linux. It installs only Herdr globally,
-with nested Core and no top-level Core, relocates a prefix containing spaces,
-and runs native launchers from an unrelated directory. Help, combined version
-output, init files and overwrite protection, configuration lookup, credentials,
-selectors, `--env` rejection and missing live context retain Core's behavior.
-Public imports stay lazy; installed declarations conform to the terminal and
-CLI contracts. Generic protocol-substitute consumers retain startup, exact-ref
-resume, readiness retry, assignment recovery and close behavior.
-
-After base and generic checks, ordinary npm installation of the unchanged Codex
-tarball into the same prefix succeeds. Through Herdr's public factory, invalid
-`readyTimeout: 0` reaches Codex's own option validation and yields its expected
-error. This proves actual module and factory loading, including its transitive
-dependencies, without a real Codex daemon or trust changes. The command still
-reports `issue-runner-herdr 0.0.0-dev.1 (core 0.0.0-contract.1)` afterward.
-
-Ripwire reports no gating quality regressions, no incompatible caller of
-`globalInstallation`, and no uncovered impacted symbols. Its test-selection
-command exits 4 while listing tests to run; it does not observe their execution.
-The complete suite covers that list.
-
-Native Windows/macOS execution and live Herdr/Codex acceptance were not run.
-The existing Ubuntu/Windows CI jobs are unchanged and were not operated here.
-Core issues #15 and #198 retain real-terminal acceptance. No package was
-published and no tracker or pull request was modified.
+Ripwire's quality delta exits 2: it flags recent churn, similar forwarding methods (`execute`, bound `submitText`, `sendKeys`) and longer package verification helpers. The forwarding methods deliberately share the existing input queue; no additional abstraction or baseline suppression was added. The test selector exits 4 while enumerating 19 affected test/fixture files and reports no uncovered impacted symbols. The final full suite exercises that selection; the selector does not observe test execution.
