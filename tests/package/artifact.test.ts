@@ -171,22 +171,29 @@ void enhancement;
     `
 import assert from "node:assert/strict";
 export const contractVersion = 1;
-export let stopped = false;
-export let monitoring = 0;
-export let readiness = 0;
+export const calls = [];
 export async function createEnhancement(host, context, config) {
   assert.equal(context.cwd, process.cwd());
   assert.deepEqual(context.env, { GENERIC: "context" });
   assert.deepEqual(config, { shared: { option: true }, other: ["kept"] });
-  assert.equal(await host.read(), "Visible screen 中文");
-  await host.submitText("完整 text\\n\\n  indented\\n");
-  await host.sendKeys(["Escape", "Shift+Enter"]);
-  await assert.rejects(host.requestRecovery(), /retained Core recovery/);
+  const call = { monitoring: [], readiness: 0, stopped: false };
+  calls.push(call);
+  if (calls.length === 1) {
+    assert.equal(await host.read(), "Visible screen 中文");
+    await host.submitText("完整 text\\n\\n  indented\\n");
+    await host.sendKeys(["Escape", "Shift+Enter"]);
+    await assert.rejects(host.requestRecovery(), /retained Core recovery/);
+  }
   return {
-    async startMonitoring(ref) { assert.equal(ref, undefined); monitoring++; },
-    async waitUntilReady() { assert.equal(monitoring, 1); readiness++; return "packaged native ref"; },
+    async startMonitoring(ref) { call.monitoring.push(ref); },
+    async waitUntilReady() {
+      assert.equal(call.monitoring.length, 1);
+      call.readiness++;
+      if (call.monitoring[0] !== undefined && call.readiness === 1) throw new Error("readiness unavailable");
+      return call.monitoring[0] ?? "packaged native ref";
+    },
     onAssignment() { throw new Error("not part of preflight"); },
-    async stop() { stopped = true; await assert.rejects(host.submitText("late"), /abort/); }
+    async stop() { call.stopped = true; await assert.rejects(host.submitText("late"), /abort/); }
   };
 }
 `,
@@ -199,15 +206,24 @@ import { createTerminalPlugin } from ${JSON.stringify(pathToFileURL(join(modules
 import * as fixture from ${JSON.stringify(pathToFileURL(join(enhancement, "index.mjs")).href)};
 const terminal = await createTerminalPlugin({ enhancements: { shared: { option: true }, other: ["kept"] } });
 const tab = await terminal.createTab({ cwd: process.cwd(), env: { GENERIC: "context" }, label: "Global enhancement", agent: "generic", submitKey: "Shift+Enter" });
-assert.equal(fixture.stopped, false);
-assert.equal(fixture.monitoring, 0);
+assert.equal(fixture.calls[0].stopped, false);
+assert.deepEqual(fixture.calls[0].monitoring, []);
 assert.equal(await terminal.start(tab, "generic-agent --configured"), "packaged native ref");
 assert.equal(await terminal.start(tab, "must not be replayed"), "packaged native ref");
-assert.equal(fixture.monitoring, 1);
-assert.equal(fixture.readiness, 2);
+assert.deepEqual(fixture.calls[0].monitoring, [undefined]);
+assert.equal(fixture.calls[0].readiness, 2);
 await terminal.closeTab(tab);
-assert.equal(fixture.stopped, true);
+assert.equal(fixture.calls[0].stopped, true);
 await terminal.closeTab(tab);
+const resumer = await createTerminalPlugin({ enhancements: { shared: { option: true }, other: ["kept"] } });
+const resumed = await resumer.createTab({ cwd: process.cwd(), env: { GENERIC: "context" }, label: "Enhanced resume", agent: "generic", submitKey: "Shift+Enter" });
+await assert.rejects(resumer.resume(resumed, "generic-agent resume 'saved ref'", "packaged saved ref"), /readiness unavailable/);
+assert.equal(await resumer.resume(resumed, "must not be replayed", "packaged saved ref"), "packaged saved ref");
+assert.equal(fixture.calls.length, 2);
+assert.deepEqual(fixture.calls[1].monitoring, ["packaged saved ref"]);
+assert.equal(fixture.calls[1].readiness, 2);
+await resumer.closeTab(resumed);
+assert.equal(fixture.calls[1].stopped, true);
 `,
   );
   await exec(
@@ -333,6 +349,26 @@ await resumer.closeTab(resumed);
     ...targetSteps(),
     ...targetSteps(),
     ...inputSteps("generic-agent --configured"),
+    ...targetSteps(),
+    {
+      method: "tab.list",
+      result: {
+        type: "tab_list",
+        tabs: [
+          { workspace_id: "w1", tab_id: "w1:t1" },
+          { workspace_id: "w1", tab_id: "w1:t2" },
+        ],
+      },
+    },
+    {
+      method: "tab.close",
+      params: { tab_id: "w1:t2" },
+      result: { type: "ok" },
+    },
+    ...contextSteps(),
+    createStep(),
+    ...targetSteps(),
+    ...inputSteps("generic-agent resume 'saved ref'"),
     ...targetSteps(),
     {
       method: "tab.list",
