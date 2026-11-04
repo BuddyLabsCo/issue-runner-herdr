@@ -21,7 +21,7 @@ public module -> plugin/ -> herdr/ -> Herdr server
 ```
 
 - Public exports: `contractVersion` and `createTerminalPlugin`; consume types from `issue-runner-core/terminal`.
-- Keep handles, target associations, and each Tab's enhancement inside its plugin instance; keep transport and test seams private.
+- Keep handles and target associations inside their plugin instance; keep transport and test seams private.
 - Core owns enhancement discovery, lifecycle, preflight, monitoring, startup delays, readiness, session identity, Assignment notification and recovery. Herdr neither imports enhancements nor interprets `terminalPlugins.agentStartDelay` or `terminalPlugins.enhancements`.
 - The executable in `src/cli.ts` calls only the public `issue-runner-core/cli` entry with command identity, lazy terminal module, real executing terminal package location and CLI entry identity. Core validates the installation and discovers enhancements. Importing the public terminal module never invokes the CLI.
 - Core owns shared CLI policy, workflows, Agent configuration, retries, handoff acceptance and workflow recovery.
