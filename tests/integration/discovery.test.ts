@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import {
@@ -49,7 +49,7 @@ for (const installation of ["project", "project-lib"] as const) {
 
 for (const installation of ["global", "global-windows"] as const) {
   for (const broken of [false, true]) {
-    await test(`${installation} discovery follows the installation with unrelated active npm configuration (broken: ${broken})`, async (t) => {
+    await test(`${installation} discovery with nested Core and no top-level Core follows Herdr despite unrelated npm configuration (broken: ${broken})`, async (t) => {
       const installed = await installedPlugin(installation);
       const selected = await installed.install(
         "generic",
@@ -89,23 +89,68 @@ for (const installation of ["global", "global-windows"] as const) {
   }
 }
 
-await test("a Project-local installation cannot borrow a launcher for another entry point", async (t) => {
-  const installed = await installedPlugin("project");
-  await installed.install(
-    "generic",
-    "throw new Error('Project-local enhancement executed');",
-  );
-  await writeFile(join(installed.prefix, "other-cli.js"), "export {};\n");
-  await writeFile(
-    join(installed.prefix, "issue-runner.cmd"),
-    '@echo off\r\nnode "%dp0%\\other-cli.js" %*\r\n',
-  );
-  const server = await herdr([...contextSteps(), createStep()]);
-  t.after(() => server.close());
-  t.after(() => installed.close());
-  const plugin = await installed.plugin.createTerminalPlugin(undefined);
-  await plugin.createTab(options);
-});
+for (const installation of ["global", "global-windows"] as const) {
+  await test(`${installation} cannot borrow a launcher targeting another entry point`, async (t) => {
+    const installed = await installedPlugin(installation);
+    t.after(() => installed.close());
+    await installed.install(
+      "generic",
+      "throw new Error('wrong launcher enhancement executed');",
+    );
+    await writeFile(join(installed.prefix, "other-cli.js"), "export {};\n");
+    if (process.platform === "win32" || installation === "global-windows") {
+      await writeFile(
+        join(installed.prefix, "issue-runner-herdr.cmd"),
+        '@echo off\r\nnode "%dp0%\\other-cli.js" %*\r\n',
+      );
+    } else {
+      const launcher = join(installed.prefix, "bin/issue-runner-herdr");
+      await rm(launcher);
+      await symlink("../other-cli.js", launcher);
+    }
+    const server = await herdr([...contextSteps(), createStep()]);
+    t.after(() => server.close());
+    await (
+      await installed.plugin.createTerminalPlugin(undefined)
+    ).createTab(options);
+  });
+}
+
+for (const invalid of ["name", "bin", "escaping executable"]) {
+  await test(`Herdr installation identity rejects ${invalid}`, async (t) => {
+    const installed = await installedPlugin();
+    t.after(() => installed.close());
+    await installed.install(
+      "generic",
+      "throw new Error('invalid installation enhancement executed');",
+    );
+    const root = join(installed.modules, "issue-runner-herdr");
+    const file = join(root, "package.json");
+    const manifest = JSON.parse(await readFile(file, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    if (invalid === "name") manifest.name = "another-terminal";
+    if (invalid === "bin") delete manifest.bin;
+    if (invalid === "escaping executable") {
+      const outside = join(installed.prefix, "outside");
+      await mkdir(outside);
+      await writeFile(join(outside, "cli.js"), "export {};\n");
+      await symlink(
+        outside,
+        join(root, "linked"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
+      manifest.bin = { "issue-runner-herdr": "./linked/cli.js" };
+    }
+    await writeFile(file, JSON.stringify(manifest));
+    const server = await herdr([...contextSteps(), createStep()]);
+    t.after(() => server.close());
+    await (
+      await installed.plugin.createTerminalPlugin(undefined)
+    ).createTab(options);
+  });
+}
 
 for (const config of [undefined, {}]) {
   await test(`omitted enhancement options still discover the generic package: ${JSON.stringify(config)}`, async (t) => {

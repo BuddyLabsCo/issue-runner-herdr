@@ -1,20 +1,12 @@
+import { verifyCodex } from "./codex.ts";
+import { verifyCommand } from "./command.ts";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import {
-  mkdtemp,
-  mkdir,
-  readFile,
-  readdir,
-  realpath,
-  rename,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { promisify } from "node:util";
+import { pathToFileURL } from "node:url";
+import { exec, root, installCandidate } from "../fixtures/package.ts";
 import {
   contextSteps,
   createStep,
@@ -23,78 +15,25 @@ import {
   targetSteps,
 } from "../fixtures/herdr.ts";
 
-const exec = promisify(execFile);
-const root = fileURLToPath(new URL("../../", import.meta.url));
-
 await test("installed artifact conforms to Core composite startup in a consumer with spaces", async (t) => {
   // Match discovery's canonical paths so Windows temp aliases share one module instance.
   const consumer = await realpath(
     await mkdtemp(join(tmpdir(), "herdr package consumer ")),
   );
   t.after(() => rm(consumer, { recursive: true, force: true }));
-  const artifacts = join(consumer, "artifacts");
-  await mkdir(artifacts);
-  const npm = process.env.npm_execpath;
-  assert.ok(npm, "Run package checks through npm so its CLI is available");
-  const packed = await exec(
-    process.execPath,
-    [npm, "pack", "--json", "--pack-destination", artifacts],
-    { cwd: root },
-  );
-  const [artifact] = JSON.parse(packed.stdout) as {
-    filename: string;
-    files: { path: string }[];
-  }[];
-  assert.ok(artifact);
-  assert.ok(artifact.files.some(({ path }) => path === "dist/index.js"));
-  assert.ok(artifact.files.some(({ path }) => path === "dist/index.d.ts"));
-  assert.ok(
-    artifact.files.every(
-      ({ path }) =>
-        path === "package.json" ||
-        path === "README.md" ||
-        (path.startsWith("dist/") && /\.(js|d\.ts)$/.test(path)),
-    ),
-    "Only built runtime files, declarations, and package documentation ship",
-  );
+  const { npm, installed, modules, prefix, version } =
+    await installCandidate(consumer);
+  await verifyCommand(prefix, installed, consumer, version);
   await writeFile(
-    join(consumer, "package.json"),
-    JSON.stringify({ private: true, type: "module" }),
-  );
-  await exec(
-    process.execPath,
-    [
-      npm,
-      "install",
-      "--omit=dev",
-      "--ignore-scripts",
-      "--no-audit",
-      "--no-fund",
-      join(root, "issue-runner-core-contract.1.tgz"),
-      join(artifacts, artifact.filename),
-    ],
-    { cwd: consumer },
-  );
-  const installed = join(consumer, "node_modules", "issue-runner-herdr");
-  assert.deepEqual(
-    (await readdir(join(consumer, "node_modules")))
-      .filter((name) => !name.startsWith("."))
-      .sort(),
-    ["cac", "issue-runner-core", "issue-runner-herdr", "yaml"],
-    "The consumer has no checkout development dependencies",
-  );
-  const manifest = JSON.parse(
-    await readFile(join(installed, "package.json"), "utf8"),
-  ) as Record<string, unknown>;
-  assert.equal(manifest.bin, undefined, "Core owns the only Runner executable");
-  assert.ok(manifest.exports && typeof manifest.exports === "object");
-  assert.deepEqual(Object.keys(manifest.exports), ["."]);
-  await writeFile(
-    join(consumer, "contract.mts"),
+    join(installed, "contract.mts"),
     `
 import type { EnhancementModule, TerminalPlugin, TerminalPluginModule } from "issue-runner-core/terminal";
+import { runCli, type CliOptions } from "issue-runner-core/cli";
 import * as plugin from "issue-runner-herdr";
 const contract: TerminalPluginModule = plugin;
+const options: CliOptions = { commandName: "issue-runner-herdr", commandVersion: "0.0.0-dev.1", terminal: plugin };
+const run: (options: CliOptions) => Promise<void> = runCli;
+void options; void run;
 const version: 1 = plugin.contractVersion;
 const args: Parameters<typeof plugin.createTerminalPlugin> = [{ agentStartDelay: 0, enhancements: { retained: true } }];
 const initialized: Promise<TerminalPlugin> = contract.createTerminalPlugin(args[0]);
@@ -123,7 +62,7 @@ void enhancement;
 `,
   );
   await writeFile(
-    join(consumer, "tsconfig.json"),
+    join(installed, "tsconfig.json"),
     JSON.stringify({
       compilerOptions: {
         strict: true,
@@ -134,31 +73,6 @@ void enhancement;
       },
       files: ["contract.mts"],
     }),
-  );
-  const originalPrefix = join(consumer, "original global prefix");
-  await exec(
-    process.execPath,
-    [
-      npm,
-      "install",
-      "--global",
-      "--prefix",
-      originalPrefix,
-      "--offline",
-      "--ignore-scripts",
-      "--no-audit",
-      "--no-fund",
-      join(root, "issue-runner-core-contract.1.tgz"),
-      join(artifacts, artifact.filename),
-    ],
-    { cwd: consumer },
-  );
-  const prefix = join(consumer, "relocated global prefix");
-  await rename(originalPrefix, prefix);
-  const modules = join(
-    prefix,
-    ...(process.platform === "win32" ? [] : ["lib"]),
-    "node_modules",
   );
   const enhancement = join(modules, "issue-runner-agent-generic");
   await mkdir(enhancement);
@@ -234,11 +148,11 @@ assert.equal(fixture.calls[1].stopped, true);
   );
   await exec(
     process.execPath,
-    [join(root, "node_modules/typescript/bin/tsc"), "-p", consumer],
+    [join(root, "node_modules/typescript/bin/tsc"), "-p", installed],
     { cwd: consumer },
   );
   await writeFile(
-    join(consumer, "consumer.mjs"),
+    join(installed, "consumer.mjs"),
     `
 import assert from "node:assert/strict";
 import * as plugin from "issue-runner-herdr";
@@ -399,9 +313,11 @@ await resumer.closeTab(resumed);
       params: { tab_id: "w1:t2" },
       result: { type: "ok" },
     },
+    ...contextSteps(),
+    createStep(),
   ]);
   t.after(() => server.close());
-  await exec(process.execPath, ["consumer.mjs"], {
+  await exec(process.execPath, [join(installed, "consumer.mjs")], {
     cwd: consumer,
     env: { ...process.env, NODE_PATH: "", NODE_OPTIONS: "" },
   });
@@ -415,6 +331,7 @@ await resumer.closeTab(resumed);
       NODE_OPTIONS: "",
     },
   });
+  await verifyCodex(npm, prefix, modules, consumer);
   const creation = server.requests[2];
   assert.equal(creation?.params.cwd, consumer);
   assert.equal(creation.params.label, "Packaged lifecycle");

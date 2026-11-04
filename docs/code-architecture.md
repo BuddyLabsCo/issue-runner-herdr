@@ -2,7 +2,7 @@
 
 ```text
 /
-|-- src/                       # Public exports and plugin assembly
+|-- src/                       # Command entry, public exports and plugin assembly
 |   |-- plugin/                # Configuration, discovery, enhancement lifecycle; tab ownership and operation ordering
 |   `-- herdr/                 # Host context, native targets, protocol encoding, transport, timeouts
 |-- tests/
@@ -22,8 +22,9 @@ public module -> plugin/ -> herdr/ -> Herdr server
 
 - Public exports: `contractVersion` and `createTerminalPlugin`; consume types from `issue-runner-core/terminal`.
 - Keep handles, target associations, and each Tab's enhancement inside its plugin instance; keep transport and test seams private.
-- Discover optional enhancements only beside the globally installed plugin, anchored by its sibling Core package and global launcher. Package filesystem checks belong in `plugin/discovery.ts`; native I/O belongs in `herdr/`.
-- Core owns workflow, Agent configuration, retries, handoff acceptance and workflow recovery.
+- Discover optional enhancements only beside the globally installed plugin, anchored by the canonical executing Herdr package, its declared executable and matching same-prefix launcher; Core may be nested. Package filesystem checks belong in `plugin/discovery.ts`; native I/O belongs in `herdr/`.
+- The executable in `src/cli.ts` calls only the public `issue-runner-core/cli` entry with command identity and the lazy terminal module. Importing the public terminal module never invokes the CLI.
+- Core owns shared CLI policy, workflow, Agent configuration, retries, handoff acceptance and workflow recovery.
 - The plugin layer owns startup progress, delay and Run cancellation per tab; native I/O retains finite bounds.
 - Optional enhancements own business-turn recovery decisions; Herdr transports their requested input through Core's bound Host contract.
 - Await enhancement preflight before returning a created Tab. Abort stops automatic activity while retaining the terminal; explicit close awaits enhancement stop before native close.
