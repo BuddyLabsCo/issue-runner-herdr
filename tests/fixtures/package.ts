@@ -9,7 +9,7 @@ import {
   rename,
   writeFile,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -63,29 +63,17 @@ export async function installCandidate(consumer: string) {
       },
     }),
   );
-  const packed = await exec(
+  const artifacts = join(consumer, "packed artifacts");
+  await mkdir(artifacts);
+  await exec(
     process.execPath,
-    [npm, "pack", "--ignore-scripts", "--json"],
+    [npm, "pack", "--ignore-scripts", "--pack-destination", artifacts],
     { cwd: candidate },
   );
-  const [artifact] = JSON.parse(packed.stdout) as {
-    filename: string;
-    files: { path: string }[];
-  }[];
-  assert.ok(artifact);
-  for (const name of ["dist/index.js", "dist/index.d.ts", "dist/cli.js"])
-    assert.ok(
-      artifact.files.some(({ path }) => path === name),
-      name,
-    );
-  assert.ok(
-    artifact.files.every(
-      ({ path }) =>
-        path === "package.json" ||
-        path === "README.md" ||
-        (path.startsWith("dist/") && /\.(js|d\.ts)$/.test(path)),
-    ),
-  );
+  const packed = await readdir(artifacts);
+  assert.equal(packed.length, 1, "Expected exactly one packed artifact");
+  const artifact = packed[0]!;
+  assert.match(artifact, /\.tgz$/u);
   const originalPrefix = join(consumer, "original global prefix");
   await exec(
     process.execPath,
@@ -98,7 +86,7 @@ export async function installCandidate(consumer: string) {
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
-      join(candidate, artifact.filename),
+      join(artifacts, artifact),
     ],
     { cwd: consumer },
   );
@@ -115,6 +103,25 @@ export async function installCandidate(consumer: string) {
     "Only Herdr is installed globally; Core is a transitive runtime dependency",
   );
   const installed = join(modules, "issue-runner-herdr");
+  const files = (
+    await readdir(installed, { recursive: true, withFileTypes: true })
+  )
+    .filter((entry) => !entry.isDirectory())
+    .map((entry) =>
+      relative(installed, join(entry.parentPath, entry.name))
+        .split(sep)
+        .join("/"),
+    )
+    .filter((file) => !file.startsWith("node_modules/"));
+  for (const name of ["dist/index.js", "dist/index.d.ts", "dist/cli.js"])
+    assert.ok(files.includes(name), name);
+  for (const file of files)
+    assert.ok(
+      file === "package.json" ||
+        file === "README.md" ||
+        (file.startsWith("dist/") && /\.(js|d\.ts)$/u.test(file)),
+      `Unexpected installed package file: ${file}`,
+    );
   const core = join(installed, "node_modules/issue-runner-core");
   for (const file of [
     "dist/cli-entry.js",
