@@ -64,7 +64,13 @@ success. A settled request clears its timer, destroys its socket, and leaves the
 pending-request set. Timeout or transport loss can mean a mutation already
 happened; late replies cannot trigger follow-up keys or automatic replay.
 The plugin cannot undo text or keys already acknowledged by the backend.
-A Run abort stops subsequent body/key requests, including queued input.
+Input starts after queue admission, ownership and target checks, and the final
+cancellation check immediately before the first native send. Revocation before
+that boundary prevents every native input message, including during target checks.
+After the first send, cancellation alone permits the remaining text/Right/submit
+messages or validated key chords to finish in order. The operation retains its
+queue slot and remains pending until completion or a native error. Later queued
+operations and calls after revocation send no input.
 Core owns startup delays, monitoring, readiness and recovery.
 An in-flight native request keeps its finite deadline; cancellation neither closes
 the tab nor sends process termination input.
@@ -72,7 +78,7 @@ the tab nor sends process termination input.
 Bound reads request the visible text snapshot, never recent output or ANSI format.
 The adapter validates the returned pane, tab, workspace, source, format, and text before returning it.
 Bound keys validate the entire array before querying or sending. Shift+Enter stays one chord.
-The adapter checks cancellation before every key; abort prevents remaining input after an in-flight request settles.
+The adapter checks cancellation immediately before the first key, then completes the validated sequence unless a native failure or timeout occurs.
 Explicit native close remains usable after revocation. Core owns enhancement
 cleanup; the adapter does not invoke it.
 

@@ -43,24 +43,6 @@ export function operations(host: Host): TerminalPlugin {
       throw error;
     }
   }
-  async function automatic<T>(handle: object, action: () => Promise<T>) {
-    const signal = signals.get(handle)!;
-    signal.throwIfAborted();
-    let cancel!: () => void;
-    const aborted = new Promise<never>((_, reject) => {
-      cancel = () => {
-        reject(new DOMException("Automatic activity aborted", "AbortError"));
-      };
-      signal.addEventListener("abort", cancel, { once: true });
-    });
-    try {
-      const result = await Promise.race([action(), aborted]);
-      signal.throwIfAborted();
-      return result;
-    } finally {
-      signal.removeEventListener("abort", cancel);
-    }
-  }
   async function input(
     handle: object,
     action: (target: Target, signal: AbortSignal | undefined) => Promise<void>,
@@ -76,7 +58,7 @@ export function operations(host: Host): TerminalPlugin {
         // A failed send must not block subsequent explicit input.
       }),
     );
-    return signal ? automatic(handle, () => pending) : pending;
+    return pending;
   }
   return {
     async createTab(options) {

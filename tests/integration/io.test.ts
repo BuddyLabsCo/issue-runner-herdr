@@ -9,10 +9,11 @@ import {
   inputSteps,
   targetSteps,
   pane,
+  type Step,
 } from "../fixtures/herdr.ts";
 
-for (const phase of ["read", "body", "Right", "keys"]) {
-  await test(`abort during pending I/O ${phase} prevents further automatic input`, async (t) => {
+for (const phase of ["read", "body", "Right", "submit", "keys"]) {
+  await test(`abort during pending I/O ${phase} completes started input but revokes later calls`, async (t) => {
     const events = new EventEmitter();
     const requested = once(events, "requested");
     const release = once(events, "release");
@@ -20,8 +21,8 @@ for (const phase of ["read", "body", "Right", "keys"]) {
       events.emit("release");
     });
     const controller = new AbortController();
-    const input = inputSteps("automatic");
-    const script = [
+    const input = inputSteps("automatic", "shift+enter");
+    const script: Step[] = [
       ...contextSteps(),
       createStep(),
       ...targetSteps(),
@@ -43,20 +44,19 @@ for (const phase of ["read", "body", "Right", "keys"]) {
             },
           ]
         : phase === "keys"
-          ? [
-              {
-                method: "pane.send_input",
-                params: { pane_id: pane.pane_id, text: "", keys: ["escape"] },
-                result: { type: "ok" },
-              },
-            ]
-          : input.slice(0, phase === "body" ? 1 : 2)),
+          ? ["escape", "shift+enter", "ctrl+c"].map((key) => ({
+              method: "pane.send_input",
+              params: { pane_id: pane.pane_id, text: "", keys: [key] },
+              result: { type: "ok" },
+            }))
+          : input),
     ];
-    script[script.length - 1]!.waitFor = release;
+    script[phase === "Right" ? 6 : phase === "submit" ? 7 : 5]!.waitFor =
+      release;
     const server = await herdr((request) => {
       const step = script.shift();
       assert.ok(step, `unexpected ${request.method}`);
-      if (!script.length) events.emit("requested");
+      if (step.waitFor) events.emit("requested");
       return step;
     });
     t.after(() => server.close());
@@ -65,21 +65,21 @@ for (const phase of ["read", "body", "Right", "keys"]) {
       cwd: process.cwd(),
       env: {},
       label: "Abort I/O",
-      submitKey: "Enter",
+      submitKey: "Shift+Enter",
       signal: controller.signal,
     });
-    const rejected = assert.rejects(
+    const pending = (
       phase === "read"
         ? host.read()
         : phase === "keys"
-          ? host.sendKeys(["Escape", "Enter"])
-          : host.submitText("automatic"),
-      /abort/i,
-    );
+          ? host.sendKeys(["Escape", "Shift+Enter", "Ctrl+c"])
+          : host.submitText("automatic")
+    ).catch((error: unknown) => error);
     await requested;
     controller.abort();
     events.emit("release");
-    await rejected;
+    if (phase === "read") assert.match(String(await pending), /abort/i);
+    else assert.equal(await pending, undefined);
     assert.equal(script.length, 0);
     await assert.rejects(host.submitText("later"), /abort/i);
   });

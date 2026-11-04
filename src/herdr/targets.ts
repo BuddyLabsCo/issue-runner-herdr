@@ -235,7 +235,6 @@ export async function initialize() {
           "ok",
         );
         for (const chord of ["right", key]) {
-          signal?.throwIfAborted();
           await client.request(
             "pane.send_input",
             { pane_id: owned.pane, text: "", keys: [chord] },
@@ -283,8 +282,8 @@ export async function initialize() {
       signal?: AbortSignal,
     ) {
       try {
+        signal?.throwIfAborted();
         for (const key of keys) {
-          signal?.throwIfAborted();
           await client.request(
             "pane.send_input",
             { pane_id: owned.pane, text: "", keys: [key] },

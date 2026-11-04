@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { EventEmitter, once } from "node:events";
 import test from "node:test";
+import { setImmediate } from "node:timers/promises";
 import { createTerminalPlugin } from "../../src/index.ts";
 import {
   contextSteps,
@@ -10,6 +11,7 @@ import {
   pane,
   tab as nativeTab,
   targetSteps,
+  type Step,
 } from "../fixtures/herdr.ts";
 
 const options = {
@@ -176,67 +178,173 @@ await test(
   },
 );
 
-await test(
-  "revocation rejects queued input and retains explicit close",
-  { timeout: 5000 },
-  async (t) => {
-    const events = new EventEmitter();
-    const requested = once(events, "requested");
-    const release = once(events, "release");
-    t.after(() => {
-      events.emit("release");
-    });
-    const controller = new AbortController();
-    const body = inputSteps("started")[0]!;
-    body.waitFor = release;
-    const script = [
-      ...contextSteps(),
-      createStep(),
-      ...targetSteps(),
-      body,
-      ...targetSteps(),
-      {
-        method: "tab.list",
-        result: {
-          type: "tab_list",
-          tabs: [
-            { workspace_id: "w1", tab_id: "w1:t1" },
-            { workspace_id: "w1", tab_id: "w1:t2" },
-          ],
+for (const operation of ["execute", "submitText", "sendKeys"] as const) {
+  await test(
+    `revocation completes started ${operation}, drops queued input and retains explicit close`,
+    { timeout: 5000 },
+    async (t) => {
+      const events = new EventEmitter();
+      const requested = once(events, "requested");
+      const release = once(events, "release");
+      t.after(() => {
+        events.emit("release");
+      });
+      const controller = new AbortController();
+      const finalRequested = once(events, "final requested");
+      const finalRelease = once(events, "final release");
+      t.after(() => {
+        events.emit("final release");
+      });
+      const sends: Step[] =
+        operation === "sendKeys"
+          ? ["escape", "shift+enter", "ctrl+c"].map((key) => ({
+              method: "pane.send_input",
+              params: { pane_id: pane.pane_id, text: "", keys: [key] },
+              result: { type: "ok" },
+            }))
+          : inputSteps(
+              "started",
+              operation === "execute" ? "enter" : "shift+enter",
+            );
+      sends[0]!.waitFor = release;
+      sends[2]!.waitFor = finalRelease;
+      const script = [
+        ...contextSteps(),
+        createStep(),
+        ...targetSteps(),
+        ...sends,
+        ...targetSteps(),
+        {
+          method: "tab.list",
+          result: {
+            type: "tab_list",
+            tabs: [
+              { workspace_id: "w1", tab_id: "w1:t1" },
+              { workspace_id: "w1", tab_id: "w1:t2" },
+            ],
+          },
         },
+        {
+          method: "tab.close",
+          params: { tab_id: "w1:t2" },
+          result: { type: "ok" },
+        },
+      ];
+      const server = await herdr((request) => {
+        const step = script.shift();
+        assert.ok(step, `unexpected ${request.method}`);
+        if (step.waitFor === release) events.emit("requested");
+        if (step.waitFor === finalRelease) events.emit("final requested");
+        return step;
+      });
+      t.after(() => server.close());
+      const plugin = await createTerminalPlugin();
+      const { handle, io } = await plugin.createTab({
+        ...options,
+        signal: controller.signal,
+      });
+      let settled = false;
+      const started = (
+        operation === "execute"
+          ? plugin.execute(handle, "started")
+          : operation === "submitText"
+            ? io.submitText("started")
+            : io.sendKeys(["Escape", "Shift+Enter", "Ctrl+c"])
+      ).then(
+        () => {
+          settled = true;
+        },
+        (error: unknown) => {
+          settled = true;
+          return error;
+        },
+      );
+      await requested;
+      const queued = [
+        assert.rejects(plugin.execute(handle, "queued command"), /abort/i),
+        assert.rejects(io.submitText("queued text"), /abort/i),
+        assert.rejects(io.sendKeys(["Escape", "Enter"]), /abort/i),
+      ];
+      controller.abort();
+      await assert.rejects(plugin.execute(handle, "late command"), /abort/i);
+      await assert.rejects(io.submitText("late text"), /abort/i);
+      await assert.rejects(io.sendKeys(["Enter"]), /abort/i);
+      await assert.rejects(io.read(), /abort/i);
+      assert.equal(server.requests.length, 6);
+      assert.equal(settled, false);
+      events.emit("release");
+      await finalRequested;
+      await setImmediate();
+      assert.equal(settled, false);
+      assert.equal(server.requests.length, 8);
+      events.emit("final release");
+      assert.equal(await started, undefined);
+      await Promise.all(queued);
+      assert.equal(server.requests.length, 8);
+      await assert.rejects(plugin.closeTab({}), /foreign/);
+      await plugin.closeTab(handle);
+      await plugin.closeTab(handle);
+      assert.equal(script.length, 0);
+    },
+  );
+}
+
+for (const operation of ["execute", "submitText", "sendKeys"] as const) {
+  for (const lookup of [0, 1]) {
+    await test(
+      `revocation during queued ${operation} target check ${lookup + 1} sends no input`,
+      { timeout: 2000 },
+      async (t) => {
+        const events = new EventEmitter();
+        const requested = once(events, "requested");
+        const release = once(events, "release");
+        t.after(() => {
+          events.emit("release");
+        });
+        const checks = targetSteps();
+        checks[lookup]!.waitFor = release;
+        const script = [
+          ...contextSteps(),
+          createStep(),
+          ...targetSteps(),
+          ...inputSteps("first"),
+          ...checks,
+        ];
+        const server = await herdr((request) => {
+          const step = script.shift();
+          assert.ok(step, `unexpected ${request.method}`);
+          if (step.waitFor) events.emit("requested");
+          return step;
+        });
+        t.after(() => server.close());
+        const controller = new AbortController();
+        const plugin = await createTerminalPlugin();
+        const { handle, io } = await plugin.createTab({
+          ...options,
+          signal: controller.signal,
+        });
+        const first = plugin.execute(handle, "first");
+        const queued = assert.rejects(
+          operation === "execute"
+            ? plugin.execute(handle, "revoked")
+            : operation === "submitText"
+              ? io.submitText("revoked")
+              : io.sendKeys(["Escape", "Enter"]),
+          /abort/i,
+        );
+        await requested;
+        await first;
+        controller.abort();
+        events.emit("release");
+        await queued;
+        assert.deepEqual(
+          server.requests
+            .filter((request) => request.method === "pane.send_input")
+            .map((request) => request.params),
+          inputSteps("first").map((step) => step.params),
+        );
+        assert.equal(script.length, 0);
       },
-      {
-        method: "tab.close",
-        params: { tab_id: "w1:t2" },
-        result: { type: "ok" },
-      },
-    ];
-    const server = await herdr((request) => {
-      const step = script.shift();
-      assert.ok(step, `unexpected ${request.method}`);
-      if (step.waitFor) events.emit("requested");
-      return step;
-    });
-    t.after(() => server.close());
-    const plugin = await createTerminalPlugin();
-    const { handle, io } = await plugin.createTab({
-      ...options,
-      signal: controller.signal,
-    });
-    const started = assert.rejects(plugin.execute(handle, "started"), /abort/i);
-    await requested;
-    const queued = [
-      assert.rejects(plugin.execute(handle, "queued command"), /abort/i),
-      assert.rejects(io.submitText("queued text"), /abort/i),
-      assert.rejects(io.sendKeys(["Escape", "Enter"]), /abort/i),
-    ];
-    controller.abort();
-    await Promise.all([started, ...queued]);
-    await assert.rejects(io.read(), /abort/i);
-    assert.equal(server.requests.length, 6);
-    events.emit("release");
-    await plugin.closeTab(handle);
-    await plugin.closeTab(handle);
-    assert.equal(script.length, 0);
-  },
-);
+    );
+  }
+}

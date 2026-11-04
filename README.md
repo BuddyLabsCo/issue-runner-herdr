@@ -73,7 +73,9 @@ Commands, text and keys share one queue per tab. Reads stay outside that queue; 
 
 The factory retains its `unknown` configuration boundary and requires an object. Core owns `terminalPlugins.agentStartDelay` and `terminalPlugins.enhancements`, including their defaults and validation. Herdr does not inspect those values or load enhancement packages.
 
-The optional creation `signal` revokes automatic I/O. Input checks cancellation before entering the queue and again when its turn starts. This migration preserves cancellation between native input steps; allowing an already-started sequence to finish belongs to the subsequent input cancellation ticket. Native requests retain finite transport bounds. Cancellation retains the tab for inspection or explicit closure.
+The optional creation `signal` revokes automatic I/O. Input starts after queue admission, ownership and target validation, and the final cancellation check immediately before the first native send. Revocation before that boundary prevents every input message, including when cancellation occurs during target checks.
+
+Once input starts, cancellation alone lets the complete text/Right/submit sequence or validated key sequence finish in order. The operation retains its queue slot and settles only after completion or a native error. Later queued operations and calls after revocation send nothing. Native failures and finite timeouts still stop remaining sends, without rollback or automatic replay. Cancellation retains the tab for manual takeover and explicit closure.
 
 ## Working context
 
@@ -280,7 +282,7 @@ local-socket substitute. They exercise actual UTF-8 JSON-line encoding,
 caller-context validation, creation, LF/CJK/literal text, chord ordering, owned
 targeting, concurrent handles, closure, failures, and finite timeout behavior.
 Focused unit tests cover chord defaulting, case-insensitive mapping, and rejection.
-Execution tests cover repeated opaque commands, submission acknowledgement and cancellation between input steps. Bound I/O tests cover captured submit keys, ordered chords, visible output validation and revocation. Queue tests gate native replies to check input serialization, independent tabs and reads outside the queue.
+Execution tests cover repeated opaque commands, submission acknowledgement and completion after cancellation once input starts. Bound I/O tests cover captured submit keys, complete ordered chords, visible output validation and revocation. Queue tests gate native replies to check queued cancellation, cancellation during target checks, serialization, independent tabs and reads outside the queue. Cancellation tests preserve native failures and finite timeouts after partial delivery without replay.
 Isolation tests hold scripted replies to force out-of-order creation and
 overlapping submit/close operations, and use separate socket substitutes with
 overlapping native IDs to check instance ownership.
