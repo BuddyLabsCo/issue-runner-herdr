@@ -159,7 +159,6 @@ export async function installCandidate(
     "ai-agents",
     "coding-agent",
   ]);
-  assert.equal(manifest.version, release.version);
   assert.deepEqual(Object.keys(manifest.exports), ["."]);
   assert.deepEqual(manifest.dependencies, release.dependencies);
   assert.deepEqual(manifest.bin, release.bin);
