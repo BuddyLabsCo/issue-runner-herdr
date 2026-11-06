@@ -13,6 +13,15 @@ import test from "node:test";
 import { exec, root, installCandidate } from "../fixtures/package.ts";
 import { verifyCommand } from "./command.ts";
 
+await test("rejects an invalid supplied candidate instead of packing a replacement", async (t) => {
+  const consumer = await mkdtemp(join(tmpdir(), "herdr invalid candidate "));
+  t.after(() => rm(consumer, { recursive: true, force: true }));
+  const artifact = join(consumer, "invalid.tgz");
+  await writeFile(artifact, "invalid candidate");
+  await assert.rejects(installCandidate(consumer, artifact), /TAR_BAD_ARCHIVE/);
+  assert.equal(await readFile(artifact, "utf8"), "invalid candidate");
+});
+
 await test("verifies a supplied candidate whose version differs from the checkout", async (t) => {
   const consumer = await realpath(
     await mkdtemp(join(tmpdir(), "herdr distinct candidate ")),

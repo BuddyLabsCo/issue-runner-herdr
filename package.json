@@ -30,7 +30,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test \"tests/**/*.test.*\"",
     "test:package": "node --test tests/package/artifact.test.ts",
-    "release:accept": "npm run test:package"
+    "release:accept": "node --test tests/package/artifact.test.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

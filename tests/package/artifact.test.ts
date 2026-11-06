@@ -1,6 +1,6 @@
 import { verifyCommand } from "./command.ts";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -14,15 +14,6 @@ import {
   targetSteps,
   pane,
 } from "../fixtures/herdr.ts";
-
-await test("rejects an invalid supplied candidate instead of packing a replacement", async (t) => {
-  const consumer = await mkdtemp(join(tmpdir(), "herdr invalid candidate "));
-  t.after(() => rm(consumer, { recursive: true, force: true }));
-  const artifact = join(consumer, "invalid.tgz");
-  await writeFile(artifact, "invalid candidate");
-  await assert.rejects(installCandidate(consumer, artifact), /TAR_BAD_ARCHIVE/);
-  assert.equal(await readFile(artifact, "utf8"), "invalid candidate");
-});
 
 await test("installed artifact conforms to Core v2 in a relocated consumer with spaces", async (t) => {
   const consumer = await realpath(
