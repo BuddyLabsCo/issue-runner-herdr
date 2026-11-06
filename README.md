@@ -11,7 +11,7 @@ Types come from the packaged `issue-runner-core/terminal` public contract.
 ## Install and run
 
 Install Herdr globally to receive its exact tested Core runtime transitively.
-A release requires `issue-runner-core@0.0.0-contract.1` to be available in your registry.
+A release requires `issue-runner-core@0.1.1` to be available in your registry.
 For unpublished candidates, use the [local artifact workflow](#development-artifacts).
 
 ```sh
@@ -22,7 +22,7 @@ issue-runner-herdr init --project my-project
 ```
 
 Help, version and init work without a live Herdr pane. Version output identifies
-both packages: `issue-runner-herdr 0.0.0-dev.1 (core 0.0.0-contract.1)`.
+both packages: `issue-runner-herdr 0.1.0 (core 0.1.1)`.
 Init creates `my-project/config.yaml` and three prompts beneath your working
 directory, refusing existing destinations. Edit those files and set the configured
 credentials before running from a live Herdr pane:
@@ -184,7 +184,7 @@ npm run build
 npm test
 ```
 
-`npm ci` installs the exact runtime dependency `issue-runner-core@0.1.0` from npm.
+`npm ci` installs the exact runtime dependency `issue-runner-core@0.1.1` from npm.
 The lockfile records its registry URL and integrity. Development and package
 checks require no Core archive or sibling checkout.
 Source tests use Node's built-in TypeScript support; the plugin build emits

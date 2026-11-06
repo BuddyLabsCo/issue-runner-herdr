@@ -72,4 +72,4 @@ The npm dependency switch supersedes the local archive setup above. On 2026-11-0
 | Final `npm test` | 250 passed, 6 Windows-specific skips, 0 failures; one full suite run |
 | Ripwire quality delta and test selection | No gating regressions; selector listed the exercised package suite and fixtures, with no uncovered impacted symbols |
 
-Passing runs of the existing Ubuntu and Windows CI remain required before merge. This task prohibited CI operations, so no such evidence was collected. Protocol substitutes verify adapter behavior; these checks do not establish live Herdr or combined npm operation acceptance. The checked-in historical Core archive remains untouched and is no longer required by installation or package checks.
+Passing runs of the existing Ubuntu and Windows CI remain required before merge. This task prohibited CI operations, so no such evidence was collected. Protocol substitutes verify adapter behavior; these checks do not establish live Herdr or combined npm operation acceptance. The historical Core archive has since been removed; installation and package checks use npm.
