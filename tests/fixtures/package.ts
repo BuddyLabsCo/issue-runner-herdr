@@ -1,27 +1,21 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import {
-  cp,
-  mkdir,
-  readFile,
-  readdir,
-  rename,
-  writeFile,
-} from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { mkdir, readFile, readdir, rename } from "node:fs/promises";
+import { join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 export const exec = promisify(execFile);
 export const root = fileURLToPath(new URL("../../", import.meta.url));
 
-export async function installCandidate(consumer: string) {
+export async function installCandidate(
+  consumer: string,
+  candidateTarball = process.env.HERDR_CANDIDATE_TARBALL,
+) {
   const npm = process.env.npm_execpath;
   assert.ok(npm, "Run package checks through npm so its CLI is available");
-  const release = JSON.parse(
-    await readFile(join(root, "package.json"), "utf8"),
-  ) as {
+  const releaseText = await readFile(join(root, "package.json"), "utf8");
+  const release = JSON.parse(releaseText) as {
     private?: boolean;
     version: string;
     bin: Record<string, string>;
@@ -31,49 +25,41 @@ export async function installCandidate(consumer: string) {
   const lock = JSON.parse(
     await readFile(join(root, "package-lock.json"), "utf8"),
   ) as {
-    packages: Record<string, { integrity: string; resolved: string }>;
+    packages: Record<
+      string,
+      { version: string; integrity: string; resolved: string }
+    >;
   };
   const pinned = lock.packages["node_modules/issue-runner-core"]!;
-  assert.equal(pinned.resolved, "file:issue-runner-core-contract.1.tgz");
   assert.equal(
-    pinned.integrity,
-    "sha512-" +
-      createHash("sha512")
-        .update(await readFile(join(root, "issue-runner-core-contract.1.tgz")))
-        .digest("base64"),
+    pinned.resolved,
+    "https://registry.npmjs.org/issue-runner-core/-/issue-runner-core-0.1.0.tgz",
   );
+  assert.match(pinned.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/u);
+  assert.equal(pinned.version, release.dependencies["issue-runner-core"]);
   assert.equal(release.private, undefined);
   assert.equal(release.peerDependencies, undefined);
   assert.deepEqual(release.dependencies, {
-    "issue-runner-core": "0.0.0-contract.1",
+    "issue-runner-core": "0.1.0",
   });
   assert.deepEqual(release.bin, { "issue-runner-herdr": "./dist/cli.js" });
   assert.doesNotMatch(JSON.stringify(release), /file:|link:|\.tgz/);
-  await exec(process.execPath, [npm, "run", "build"], { cwd: root });
-  const candidate = join(consumer, "candidate");
-  await mkdir(candidate);
-  for (const file of ["dist", "README.md"])
-    await cp(join(root, file), join(candidate, file), { recursive: true });
-  await writeFile(
-    join(candidate, "package.json"),
-    JSON.stringify({
-      ...release,
-      dependencies: {
-        "issue-runner-core": `file:${join(root, "issue-runner-core-contract.1.tgz")}`,
-      },
-    }),
-  );
-  const artifacts = join(consumer, "packed artifacts");
-  await mkdir(artifacts);
-  await exec(
-    process.execPath,
-    [npm, "pack", "--ignore-scripts", "--pack-destination", artifacts],
-    { cwd: candidate },
-  );
-  const packed = await readdir(artifacts);
-  assert.equal(packed.length, 1, "Expected exactly one packed artifact");
-  const artifact = packed[0]!;
+  let artifact = candidateTarball ? resolve(candidateTarball) : undefined;
+  if (!artifact) {
+    await exec(process.execPath, [npm, "run", "build"], { cwd: root });
+    const artifacts = join(consumer, "packed artifacts");
+    await mkdir(artifacts);
+    await exec(
+      process.execPath,
+      [npm, "pack", "--ignore-scripts", "--pack-destination", artifacts],
+      { cwd: root },
+    );
+    const packed = await readdir(artifacts);
+    assert.equal(packed.length, 1, "Expected exactly one packed artifact");
+    artifact = join(artifacts, packed[0]!);
+  }
   assert.match(artifact, /\.tgz$/u);
+  const artifactBytes = await readFile(artifact);
   const originalPrefix = join(consumer, "original global prefix");
   await exec(
     process.execPath,
@@ -86,7 +72,7 @@ export async function installCandidate(consumer: string) {
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
-      join(artifacts, artifact),
+      artifact,
     ],
     { cwd: consumer },
   );
@@ -123,6 +109,13 @@ export async function installCandidate(consumer: string) {
       `Unexpected installed package file: ${file}`,
     );
   const core = join(installed, "node_modules/issue-runner-core");
+  const installedCore = JSON.parse(
+    await readFile(join(core, "package.json"), "utf8"),
+  ) as { version: string };
+  assert.equal(
+    installedCore.version,
+    release.dependencies["issue-runner-core"],
+  );
   for (const file of [
     "dist/cli-entry.js",
     "dist/cli-entry.d.ts",
@@ -148,12 +141,24 @@ export async function installCandidate(consumer: string) {
     );
   const manifest = JSON.parse(
     await readFile(join(installed, "package.json"), "utf8"),
-  ) as { exports: object };
+  ) as {
+    exports: object;
+    version: string;
+    dependencies: Record<string, string>;
+    bin: Record<string, string>;
+  };
   assert.deepEqual(Object.keys(manifest.exports), ["."]);
+  assert.deepEqual(manifest.dependencies, release.dependencies);
+  assert.deepEqual(manifest.bin, release.bin);
+  assert.deepEqual(
+    await readFile(artifact),
+    artifactBytes,
+    "Package checks never change the candidate artifact",
+  );
   assert.equal(
     await readFile(join(root, "package.json"), "utf8"),
-    JSON.stringify(release, null, 2) + "\n",
-    "Candidate substitution never changes release metadata",
+    releaseText,
+    "Package checks never change release metadata",
   );
-  return { npm, installed, modules, prefix, version: release.version };
+  return { npm, installed, modules, prefix, version: manifest.version };
 }

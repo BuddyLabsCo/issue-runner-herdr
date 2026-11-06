@@ -43,6 +43,6 @@
     "issue-runner-herdr": "./dist/cli.js"
   },
   "dependencies": {
-    "issue-runner-core": "0.0.0-contract.1"
+    "issue-runner-core": "0.1.0"
   }
 }

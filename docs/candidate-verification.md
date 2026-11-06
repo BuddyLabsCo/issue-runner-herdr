@@ -55,3 +55,21 @@ Executed with Node 22.18.0 and npm 11.6.2 against the pinned artifact:
 The installed-package fixture checks the tarball against lockfile integrity and compares installed Core's public runtime/declarations with the refreshed checkout dependency. Release metadata retains its exact version dependency without candidate paths.
 
 Ripwire's quality delta exits 2: it flags recent churn, similar forwarding methods (`execute`, bound `submitText`, `sendKeys`) and longer package verification helpers. The forwarding methods deliberately share the existing input queue; no additional abstraction or baseline suppression was added. The test selector exits 4 while enumerating 19 affected test/fixture files and reports no uncovered impacted symbols. The final full suite exercises that selection; the selector does not observe test execution.
+
+## Ticket 45 npm Core consumption
+
+The npm dependency switch supersedes the local archive setup above. On 2026-11-06, Linux checks with Node 22.18.0 and npm 11.6.2 passed:
+
+| Check | Result |
+| --- | --- |
+| `npm view issue-runner-core@0.1.0 version dist --json` | Available from npm; registry URL and integrity match the regenerated lockfile |
+| `npm ci --ignore-scripts` | Installed exact Core `0.1.0` from the registry lockfile |
+| TDD at the installed-package seam | Registry-resolution assertion and invalid-candidate rejection each failed before their implementation and passed afterward |
+| Repeated `npm run typecheck`, then `npm run check` | Types, formatting and lint passed |
+| `node --test tests/integration/lifecycle.test.ts` | 8 passed |
+| `npm run build` and `npm run test:package` | Passed with the declared npm dependency and local candidate packing |
+| Supplied candidate through `HERDR_CANDIDATE_TARBALL` | Full package check passed with a distinct candidate version; installed manifest and tarball bytes stayed unchanged, and checkout build output was untouched |
+| Final `npm test` | 250 passed, 6 Windows-specific skips, 0 failures; one full suite run |
+| Ripwire quality delta and test selection | No gating regressions; selector listed the exercised package suite and fixtures, with no uncovered impacted symbols |
+
+Passing runs of the existing Ubuntu and Windows CI remain required before merge. This task prohibited CI operations, so no such evidence was collected. Protocol substitutes verify adapter behavior; these checks do not establish live Herdr or combined npm operation acceptance. The checked-in historical Core archive remains untouched and is no longer required by installation or package checks.

@@ -1,6 +1,6 @@
 import { verifyCommand } from "./command.ts";
 import assert from "node:assert/strict";
-import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -14,6 +14,15 @@ import {
   targetSteps,
   pane,
 } from "../fixtures/herdr.ts";
+
+await test("rejects an invalid supplied candidate instead of packing a replacement", async (t) => {
+  const consumer = await mkdtemp(join(tmpdir(), "herdr invalid candidate "));
+  t.after(() => rm(consumer, { recursive: true, force: true }));
+  const artifact = join(consumer, "invalid.tgz");
+  await writeFile(artifact, "invalid candidate");
+  await assert.rejects(installCandidate(consumer, artifact), /TAR_BAD_ARCHIVE/);
+  assert.equal(await readFile(artifact, "utf8"), "invalid candidate");
+});
 
 await test("installed artifact conforms to Core v2 in a relocated consumer with spaces", async (t) => {
   const consumer = await realpath(
@@ -29,7 +38,7 @@ import type { TerminalIO, TerminalPlugin, TerminalPluginModule } from "issue-run
 import { runCli, type CliOptions } from "issue-runner-core/cli";
 import * as plugin from "issue-runner-herdr";
 const contract: TerminalPluginModule = plugin;
-const options: CliOptions = { commandName: "issue-runner-herdr", commandVersion: "0.0.0-dev.1", terminal: plugin, terminalPackageRoot: "/installed/herdr", terminalCliEntry: "/installed/herdr/dist/cli.js" };
+const options: CliOptions = { commandName: "issue-runner-herdr", commandVersion: ${JSON.stringify(version)}, terminal: plugin, terminalPackageRoot: "/installed/herdr", terminalCliEntry: "/installed/herdr/dist/cli.js" };
 const run: (options: CliOptions) => Promise<void> = runCli;
 void options; void run;
 const version: 2 = plugin.contractVersion;
