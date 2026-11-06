@@ -184,12 +184,9 @@ npm run build
 npm test
 ```
 
-The checked-in `issue-runner-core-contract.1.tgz` contains the full Core runtime,
-public CLI API, declarations, templates, prompts and handoff skill. Its historical
-filename does not describe its contents. The lockfile resolves the exact Core
-runtime version to this artifact for development; `npm ci` installs it cleanly.
-The release manifest contains only the exact runtime version, with no peer
-requirement or local artifact path.
+`npm ci` installs the exact runtime dependency `issue-runner-core@0.1.0` from npm.
+The lockfile records its registry URL and integrity. Development and package
+checks require no Core archive or sibling checkout.
 Source tests use Node's built-in TypeScript support; the plugin build emits
 JavaScript and a public declaration that imports Core's public types.
 
@@ -199,31 +196,12 @@ JavaScript and a public declaration that imports Core's public types.
 declarations and documentation. Only the root terminal module is exported;
 transport helpers, source files and test fixtures remain private.
 
-To test unpublished Core without changing release metadata, pack a disposable
-Herdr copy with the local Core tarball as its runtime dependency. This POSIX shell
-recipe creates a consumable candidate in the checkout:
+Create a candidate with the declared npm Core dependency:
 
 ```sh
-npm ci --ignore-scripts
-npm run build
-artifact_root="$PWD"
-candidate=$(mktemp -d)
-cp -R dist README.md package.json "$candidate/"
-CORE_TARBALL="$artifact_root/issue-runner-core-contract.1.tgz" \
-  node --input-type=module - "$candidate/package.json" <<'JS'
-import { readFileSync, writeFileSync } from "node:fs";
-const file = process.argv[2];
-const manifest = JSON.parse(readFileSync(file, "utf8"));
-manifest.dependencies["issue-runner-core"] = `file:${process.env.CORE_TARBALL}`;
-writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
-JS
-(cd "$candidate" && npm pack --ignore-scripts --pack-destination "$artifact_root")
-rm -rf "$candidate"
+npm pack
 ```
 
-The candidate references this checkout's absolute Core artifact path; retain it
-while installing. Regenerate the candidate after moving the checkout. The
-candidate substitution is for development only and must not be published.
 The automated package check installs only Herdr, with Core nested beneath it, then relocates the prefix. It verifies the native launcher from an unrelated directory. No Agent package is needed for adapter checks.
 
 For a manual development import, install the candidate into an empty temporary
@@ -259,16 +237,21 @@ Run the automated isolated-consumer check separately with:
 npm run test:package
 ```
 
-It copies the built package, substitutes the full Core runtime tarball, packs the
-copy and installs only Herdr globally into a disposable prefix containing spaces.
+By default, the check builds and packs this checkout. To verify an existing
+candidate, set `HERDR_CANDIDATE_TARBALL` to its absolute path before running
+`npm run test:package` (or `npm test`). The check installs that artifact unchanged,
+without rebuilding, repacking or rewriting its manifest. Relative paths resolve
+from the command's working directory.
+
+It installs only Herdr globally into a disposable prefix containing spaces.
 It relocates the prefix and invokes native launchers from an unrelated directory.
 Help, combined versions, init overwrite protection, configuration lookup and run
 validation require no live Herdr context. A consumer typecheck uses installed
 Core and Herdr declarations, without checkout types.
 
-Public consumers exercise bound I/O, opaque commands, creation-time submit keys and native closure through the private protocol substitute. Installed declaration checks reject the removed startup and submission APIs. The CLI check verifies the real executing package and entry identities, independent of task cwd, nested Core and active npm prefix. The pinned artifact and transferred Core coverage are recorded in [candidate verification](docs/candidate-verification.md).
+Public consumers exercise bound I/O, opaque commands, creation-time submit keys and native closure through the private protocol substitute. Installed declaration checks reject the removed startup and submission APIs. The CLI check verifies the real executing package and entry identities, independent of task cwd, nested Core and active npm prefix. Historical Core migration coverage is recorded in [candidate verification](docs/candidate-verification.md).
 
-Core dependencies may require npm registry access. Tests remove temporary installations.
+Core installation requires npm registry access. Tests remove temporary installations.
 
 The complete `npm test` suite includes this package check. The existing Ubuntu
 and Windows CI jobs run checks, build and the suite under Node 22.18.0/npm 11.6.2.
