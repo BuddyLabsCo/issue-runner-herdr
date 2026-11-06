@@ -2,6 +2,8 @@
 
 ## 0.1.0
 
+- - fix: [issue-52] align release acceptance with Core (#53)
+- - chore: propose release v0.1.0 (#51)
 - - feat: [issue-46] automate stable Herdr releases (#50)
 - - fix: [issue-45] consume exact Core 0.1.0 from npm (#49)
 - - fix: [issue-240] verify package artifacts without npm output parsing (#43)
