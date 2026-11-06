@@ -98,5 +98,8 @@ await test("publication runs candidate acceptance without repeating full CI or w
   const manifest = JSON.parse(
     readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
   ) as { scripts: Record<string, string> };
-  assert.equal(manifest.scripts["release:accept"], "npm run test:package");
+  assert.equal(
+    manifest.scripts["release:accept"],
+    "node --test tests/package/artifact.test.ts",
+  );
 });
