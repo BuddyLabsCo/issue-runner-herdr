@@ -2,6 +2,8 @@
 
 ## 0.1.0
 
+- - chore: [issue-55] upgrade Core to 0.1.1 and remove legacy archive (#56)
+- - chore: propose release v0.1.0 (#54)
 - - fix: [issue-52] align release acceptance with Core (#53)
 - - chore: propose release v0.1.0 (#51)
 - - feat: [issue-46] automate stable Herdr releases (#50)
