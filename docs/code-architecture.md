@@ -9,7 +9,9 @@
 |   |-- unit/                  # Validation and key mapping
 |   |-- integration/           # Public plugin behavior through a Herdr protocol substitute
 |   |-- package/               # Built exports and Core contract compatibility
+|   |-- release/               # Release entry points through real Git and service substitutes
 |   `-- fixtures/              # Protocol substitute and scripted backend responses
+|-- scripts/release/           # Stable proposals, candidate verification and publication
 |-- docs/                      # Architecture, decisions and usage
 |-- .github/workflows/         # Build and tests on Ubuntu and Windows
 `-- dist/                      # Generated output
@@ -29,4 +31,5 @@ public module -> plugin/ -> herdr/ -> Herdr server
 - The plugin owns one input queue per tab and its revocation signal. Command, text and key operations share the queue; reads stay outside it. Native I/O retains identity checks and finite bounds. Input starts after queue admission, ownership and target validation, and the final cancellation check immediately before the first native send. Once started, input retains its queue slot until all sends finish or a native error occurs; cancellation alone never interrupts it. Revoked queued operations send nothing.
 - Explicit close works after revocation, closes only the owned target and never invokes enhancement cleanup.
 - Keep helpers beside their owner. Add directories when needed, not as empty scaffolding.
+- Release automation stays outside the runtime package. Package acceptance uses the existing supplied-candidate checks; proposal and publication service substitutes stay in release tests.
 - Run `npm run check` for formatting, lint and types; `npm test` checks the quality rules.

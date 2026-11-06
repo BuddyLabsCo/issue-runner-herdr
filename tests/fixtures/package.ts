@@ -146,7 +146,19 @@ export async function installCandidate(
     version: string;
     dependencies: Record<string, string>;
     bin: Record<string, string>;
+    keywords: string[];
   };
+  assert.deepEqual(manifest.keywords, [
+    "issue-runner",
+    "herdr",
+    "terminal",
+    "terminal-plugin",
+    "cli",
+    "github-issues",
+    "workflow-automation",
+    "ai-agents",
+    "coding-agent",
+  ]);
   assert.deepEqual(Object.keys(manifest.exports), ["."]);
   assert.deepEqual(manifest.dependencies, release.dependencies);
   assert.deepEqual(manifest.bin, release.bin);

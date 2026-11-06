@@ -190,6 +190,9 @@ checks require no Core archive or sibling checkout.
 Source tests use Node's built-in TypeScript support; the plugin build emits
 JavaScript and a public declaration that imports Core's public types.
 
+The stable release process and bootstrap handoff are documented in
+[releasing Herdr](docs/releases.md).
+
 ## Development artifacts
 
 `npm pack` builds a release-shaped package with the public module, executable,
@@ -208,7 +211,7 @@ For a manual development import, install the candidate into an empty temporary
 consumer and run there:
 
 ```sh
-npm install --omit=dev --ignore-scripts "/absolute/path/issue-runner-herdr-0.0.0-dev.1.tgz"
+npm install --omit=dev --ignore-scripts "/absolute/path/issue-runner-herdr-0.1.0.tgz"
 node --input-type=module -e "import('issue-runner-herdr').then(m => console.log(m.contractVersion))"
 ```
 
