@@ -1,8 +1,13 @@
 # Changelog
 
+## 0.1.2
+
+- - chore: [issue-75] upgrade Core dependency to 0.1.3 (#76)
+
 ## 0.1.1
 
 - - chore: [issue-55] upgrade Core to 0.1.1 and remove legacy archive (#56)
+
 
 ## 0.1.0
 
