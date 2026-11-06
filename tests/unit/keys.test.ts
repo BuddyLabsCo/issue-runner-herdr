@@ -3,7 +3,7 @@ import test from "node:test";
 import { encodeSubmitKey } from "../../src/herdr/keys.ts";
 
 await test("defaults an omitted submission chord to Enter", () => {
-  assert.equal(encodeSubmitKey(), "enter");
+  assert.equal(encodeSubmitKey(), "demo-intentional-failure");
   assert.equal(encodeSubmitKey(undefined), "enter");
 });
 
