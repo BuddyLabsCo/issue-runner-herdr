@@ -20,7 +20,7 @@ export const readyPackage = {
     types: "./dist/index.d.ts",
     exports: { ".": { types: "./dist/index.d.ts", import: "./dist/index.js" } },
     bin: { "issue-runner-herdr": "./dist/cli.js" },
-    dependencies: { "issue-runner-core": "0.1.0" },
+    dependencies: { "issue-runner-core": "0.1.1" },
     keywords: [
       "issue-runner",
       "herdr",
@@ -37,7 +37,7 @@ export const readyPackage = {
     scripts: { "release:accept": "node scripts/release-accept.mjs" },
   },
   files: {
-    "dist/cli.js": 'console.log("issue-runner-herdr 0.1.1 (core 0.1.0)");\n',
+    "dist/cli.js": 'console.log("issue-runner-herdr 0.1.1 (core 0.1.1)");\n',
     "dist/index.js":
       "export const contractVersion = 2; export async function createTerminalPlugin() {}\n",
     "dist/index.d.ts": "export declare const contractVersion = 2;\n",
@@ -53,7 +53,7 @@ export const readyPackage = {
       "try {",
       '  execFileSync("tar", ["-xzf", process.env.HERDR_CANDIDATE_TARBALL, "-C", directory]);',
       '  const version = execFileSync(process.execPath, [join(directory, "package/dist/cli.js"), "--version"], { encoding: "utf8" });',
-      "  assert.match(version, /issue-runner-herdr .*core 0\\.1\\.0/);",
+      "  assert.match(version, /issue-runner-herdr .*core 0\\.1\\.1/);",
       '  const before = process.listenerCount("SIGINT");',
       '  const terminal = await import(pathToFileURL(join(directory, "package/dist/index.js")));',
       "  assert.equal(terminal.contractVersion, 2);",
