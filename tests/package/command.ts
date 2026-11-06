@@ -56,7 +56,7 @@ export async function verifyCommand(
   }
   assert.equal(
     (await run(["--version"])).stdout.trim(),
-    `issue-runner-herdr ${version} (core 0.1.1)`,
+    `issue-runner-herdr ${version} (core 0.1.3)`,
   );
   const imported = await exec(
     process.execPath,

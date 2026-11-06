@@ -85,7 +85,7 @@ can propose the same version again. Finish recovery before merging another relea
 The implementation adapts the [pinned Sandcastle baseline](https://github.com/BuddyLabsCo/sandcastle-runner/tree/55c66eb88ba94272a51563666fe2ca19ece38224/scripts/release)
 and [Core's release adaptation and CI change](https://github.com/BuddyLabsCo/issue-runner-core/commit/1b260991a199d4a763475b7f3ffc2bb3abb377c4).
 Focused tests use real disposable Git repositories and substitute GitHub/npm
-services. Installed-candidate checks obtain Core `0.1.1` from npm.
+services. Installed-candidate checks obtain Core `0.1.3` from npm.
 
 As inspected on 2026-11-06, [Core's recorded publication evidence](https://github.com/BuddyLabsCo/issue-runner-core/issues/312#issuecomment-6684159063)
 establishes `0.1.0` availability and recovery of matching registry bytes.
