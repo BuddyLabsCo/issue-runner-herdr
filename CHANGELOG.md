@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- - chore: [issue-55] upgrade Core to 0.1.1 and remove legacy archive (#56)
+
 ## 0.1.0
 
 - - fix: [issue-52] align release acceptance with Core (#53)
