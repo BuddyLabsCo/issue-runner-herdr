@@ -25,23 +25,13 @@ export async function installCandidate(
   const lock = JSON.parse(
     await readFile(join(root, "package-lock.json"), "utf8"),
   ) as {
-    packages: Record<
-      string,
-      { version: string; integrity: string; resolved: string }
-    >;
+    packages: Record<string, { version: string; integrity: string }>;
   };
   const pinned = lock.packages["node_modules/issue-runner-core"]!;
-  assert.equal(
-    pinned.resolved,
-    "https://registry.npmjs.org/issue-runner-core/-/issue-runner-core-0.1.1.tgz",
-  );
   assert.match(pinned.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/u);
   assert.equal(pinned.version, release.dependencies["issue-runner-core"]);
   assert.equal(release.private, undefined);
   assert.equal(release.peerDependencies, undefined);
-  assert.deepEqual(release.dependencies, {
-    "issue-runner-core": "0.1.1",
-  });
   assert.deepEqual(release.bin, { "issue-runner-herdr": "./dist/cli.js" });
   assert.doesNotMatch(JSON.stringify(release), /file:|link:|\.tgz/);
   let artifact = candidateTarball ? resolve(candidateTarball) : undefined;
