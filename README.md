@@ -1,6 +1,6 @@
 # issue-runner-herdr-demo
 
-Demo scenario A: Herdr command and terminal execution plugin for
+Demo scenario B: Herdr command and terminal execution plugin for
 [issue-runner-core](https://github.com/BuddyLabsCo/issue-runner-core).
 
 The plugin provides Core terminal contract version 2 for
