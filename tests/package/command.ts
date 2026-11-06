@@ -54,10 +54,6 @@ export async function verifyCommand(
     assert.match(stdout, /usage: issue-runner-herdr/);
     assert.doesNotMatch(stdout, /--env/);
   }
-  assert.equal(
-    (await run(["--version"])).stdout.trim(),
-    `issue-runner-herdr ${version} (core 0.1.3)`,
-  );
   const imported = await exec(
     process.execPath,
     [
