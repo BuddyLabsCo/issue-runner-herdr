@@ -295,6 +295,7 @@ Simulated checks do not establish actual PTY delivery, Agent acceptance, exact
 conversation resume, or complete Core workflow success. Real Herdr/Agent tests
 and macOS execution have not been performed here.
 
+
 ## Product installation status
 
 Herdr owns `issue-runner-herdr` and installs its exact Core runtime dependency.
