@@ -1,12 +1,20 @@
 # Changelog
 
+## 0.1.3
+
+- - chore: [issue-85] upgrade Core dependency to 1.0.1 (#86)
+- - docs: [issue-48] consolidate Herdr documentation (#81)
+- - chore: [issue-82] align engine requirements with Core (#83)
+
 ## 0.1.2
 
 - - chore: [issue-75] upgrade Core dependency to 0.1.3 (#76)
 
+
 ## 0.1.1
 
 - - chore: [issue-55] upgrade Core to 0.1.1 and remove legacy archive (#56)
+
 
 
 ## 0.1.0
