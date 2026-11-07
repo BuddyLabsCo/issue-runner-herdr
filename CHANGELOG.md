@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.3
+## 1.0.0
 
 - - chore: [issue-85] upgrade Core dependency to 1.0.1 (#86)
 - - docs: [issue-48] consolidate Herdr documentation (#81)
