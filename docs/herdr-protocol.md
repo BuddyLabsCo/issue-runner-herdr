@@ -1,114 +1,152 @@
-# Herdr 0.9.5 protocol mapping
+# Herdr protocol
 
-The implementation targets release commit
-`2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01`, without later-version capability
-negotiation. These are source-derived protocol facts, not real-terminal test
-results from this repository.
+## Native interfaces used
 
-| Plugin operation | Herdr requests |
-| --- | --- |
-| Factory | `pane.current {caller_pane_id}`, `workspace.get {workspace_id}` |
-| Create | `tab.create {workspace_id, cwd, label, env, focus: false}` |
-| Target validation | `tab.get {tab_id}`, `pane.get {pane_id}` |
-| Execute | Target validation, then the complete command body/Right/Enter sequence below |
-| Submit body | `pane.send_input {pane_id, text, keys: []}` |
-| Submit Right | `pane.send_input {pane_id, text: "", keys: ["right"]}` after body acknowledgement |
-| Submit chord | `pane.send_input {pane_id, text: "", keys: ["enter"]}` or `["shift+enter"]` after Right acknowledgement |
-| Bound read | Target validation, then `pane.read {pane_id, source: "visible", format: "text", strip_ansi: true}` |
-| Bound logical keys | Target validation, then one ordered `pane.send_input {pane_id, text: "", keys: [chord]}` per chord, without Right |
-| Close | Target validation, `tab.list {workspace_id}`, `tab.close {tab_id}` |
-| Confirm absent after `tab.get` returns `tab_not_found` | `pane.get {pane_id: captured Runner pane}`, `tab.list {workspace_id}`; no close request |
+The adapter targets [Herdr 0.9.5](https://github.com/herdrdev/herdr/tree/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01). These interfaces describe current adapter behavior, not live-terminal acceptance results.
 
-Each ordinary request uses a new local connection with one UTF-8 JSON line:
-`{id, method, params}`. The response is `{id, result: {type, ...}}` or
-`{id, error: {code, message}}`. The adapter checks correlation and result type,
-uses a total deadline, and treats an incomplete or malformed reply as a lost
-context. A successful request's normal connection close is not connection loss.
+| Interface | Parameters used | Purpose |
+| --- | --- | --- |
+| `pane.current` | `caller_pane_id` | Resolve the inherited Runner pane and check optional inherited workspace/tab IDs |
+| `workspace.get` | `workspace_id` | Validate the Runner workspace before creating resources |
+| `tab.create` | `workspace_id`, `cwd`, `label`, `env`, `focus: false` | Create an interactive tab in the captured workspace and record its validated `tab` and `root_pane` identities |
+| `tab.get` | `tab_id` | Validate the owned tab before I/O or closure |
+| `pane.get` | `pane_id` | Validate the owned pane, or revalidate Runner when confirming an owned tab's absence |
+| `pane.send_input` | `pane_id`, `text`, `keys` | Send a complete literal body or one encoded logical chord; native Herdr handles bracketed paste |
+| `pane.read` | `pane_id`, `source: "visible"`, `format: "text"`, `strip_ansi: true` | Read the current visible screen and validate returned identities, source, format and text |
+| `tab.list` | `workspace_id` | Guard against last-tab closure and confirm absence with an unambiguous workspace list |
+| `tab.close` | `tab_id` | Close only the owned native tab; acknowledgement does not prove process or descendant exit |
 
-The inherited socket path is a Unix filesystem socket on Linux/macOS. On Windows,
-Herdr's `GenericNamespaced` mapping prepends `\\.\pipe\` to that path. No TCP
-fallback or default socket discovery is used.
+[Local protocol requests](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/api/client.rs) use one connection per UTF-8 JSON line: `{id, method, params}`. Replies must correlate `id` and contain either `result: {type, ...}` or `error: {code, message}`. Each request has a total five-second deadline and a 1 MiB request/reply limit. Linux/macOS use the inherited Unix socket path. [Windows namespace mapping](https://docs.rs/interprocess/2.4.4/interprocess/local_socket/enum.GenericNamespaced.html) prepends `\\.\pipe\` to it. There is no TCP fallback or default-server discovery.
 
-Tab creation returns both `tab` and `root_pane`. The plugin records the public tab,
-pane, workspace, and terminal IDs; labels are never identities. Herdr injects
-managed pane routing after explicit environment overrides. The plugin excludes
-inherited routing keys from its launch overlay and rejects explicit routing
-overrides so new tabs receive Herdr's own context.
+[Public native IDs](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/workspace.rs) use `123456789ABCDEFGHJKMNPQRSTVWXYZ0`, including multi-character suffixes. The adapter validates workspace prefixes and keeps workspace, tab, pane and terminal identities private. Labels and UI focus never select targets.
 
-Herdr encodes workspace, tab, and pane numbers with the alphabet
-`123456789ABCDEFGHJKMNPQRSTVWXYZ0`. Public IDs include `wH`, `wH:t3`, and
-`wH:p3`; suffixes can contain multiple characters, and `0` is valid.
-Validation checks this alphabet and the exact workspace prefix of each tab and pane.
+## Interaction sequences
 
-The generic input encoder owns bracketed-paste encoding according to the target
-terminal's mode. The plugin sends the complete body using generic
-`pane.send_input` rather than raw `pane.send_text`, Agent-specific APIs, separate
-line submissions, or rewritten newline characters. Body, Right, and the final
-chord use separate, sequential requests so rejection or timeout stops later
-steps. Sending them together would dispatch the keys before body acknowledgement.
+### Initialize and create a tab
 
-The required creation-time `submitKey` string names one chord, mapped case-insensitively
-to `enter` or `shift+enter`. Other chords, whitespace, key scripts,
-and raw backend encodings reject locally before tab creation. The
-mapping stays private to the Herdr adapter. The first request carries the complete
-unchanged canonical-LF text with no keys; each subsequent request carries empty
-text and one key. Commands always use Enter; bound text uses the creation-time
-submit key. A shared per-tab queue preserves ordering across command, text
-and logical-key operations.
+```mermaid
+%%{init: {"sequence": {"width": 250, "wrap": true}}}%%
+sequenceDiagram
+    participant H as Herdr (the plugin)
+    participant N as Native Herdr
+    Note over H: Capture inherited environment, HERDR_SOCKET_PATH and HERDR_PANE_ID
+    Note over H: Reject missing or malformed context before requests
+    H->>N: pane.current {caller_pane_id}
+    N-->>H: pane_current with Runner identities
+    Note over H: Check pane and optional inherited workspace/tab IDs
+    H->>N: workspace.get {workspace_id}
+    N-->>H: workspace_info
+    Note over H: Validate workspace, initialization creates no resources
+    Note over H: Validate and capture cwd, label, env and submitKey
+    Note over H: cwd must be an existing absolute host directory: POSIX path, Windows drive path or UNC path
+    Note over H: Exclude inherited routing keys, reject explicit routing overrides. Preserve literal values, Windows env names are case-insensitive
+    H->>N: tab.create {workspace_id, cwd, label, env, focus: false}
+    Note over N: Inject managed routing context for the new pane
+    N-->>H: tab_created {tab, root_pane}
+    Note over H: Validate unique tab, root pane and terminal identities. Return an owned handle and bound I/O, launch no command
+    Note over H,N: A rejected or lost creation reply can leave a native tab. Never guess its identity or replay creation
+```
 
-Every request has a total five-second deadline covering connection, writing,
-and receipt of a complete reply, including partial replies. Backend errors
-preserve the method, code, and message. Invalid correlation, malformed envelopes,
-incomplete replies, and unusable creation results reject rather than fabricate
-success. A settled request clears its timer, destroys its socket, and leaves the
-pending-request set. Timeout or transport loss can mean a mutation already
-happened; late replies cannot trigger follow-up keys or automatic replay.
-The plugin cannot undo text or keys already acknowledged by the backend.
-Input starts after queue admission, ownership and target checks, and the final
-cancellation check immediately before the first native send. Revocation before
-that boundary prevents every native input message, including during target checks.
-After the first send, cancellation alone permits the remaining text/Right/submit
-messages or validated key chords to finish in order. The operation retains its
-queue slot and remains pending until completion or a native error. Later queued
-operations and calls after revocation send no input.
-Core owns startup delays, monitoring, readiness and recovery.
-An in-flight native request keeps its finite deadline; cancellation neither closes
-the tab nor sends process termination input.
+### Validate targets, submit input and read output
 
-Bound reads request the visible text snapshot, never recent output or ANSI format.
-The adapter validates the returned pane, tab, workspace, source, format, and text before returning it.
-Bound keys validate the entire array before querying or sending. Shift+Enter stays one chord.
-The adapter checks cancellation immediately before the first key, then completes the validated sequence unless a native failure or timeout occurs.
-Explicit native close remains usable after revocation. Core owns enhancement
-cleanup; the adapter does not invoke it.
+```mermaid
+%%{init: {"sequence": {"width": 250, "wrap": true}}}%%
+sequenceDiagram
+    participant H as Herdr (the plugin)
+    participant N as Native Herdr
+    Note over H: Commands, text and keys enter one queue per tab. Reads bypass the queue, other tabs remain independent
+    Note over H: Reject foreign, closed, invalid or revoked handles. Validate all logical keys before native queries
+    H->>N: tab.get {tab_id: owned tab}
+    N-->>H: tab_info
+    H->>N: pane.get {pane_id: owned root pane}
+    N-->>H: pane_info
+    Note over H: Require recorded workspace, tab, pane and terminal identities. Changed targets invalidate the handle, never adopt a replacement
+    alt Revoked before first input send, including during target checks
+        Note over H: Reject without sending input, retain tab for manual takeover
+    else Command or bound text submission
+        H->>N: pane.send_input {pane_id, text: complete unchanged body, keys: []}
+        N-->>H: ok
+        H->>N: pane.send_input {pane_id, text: empty, keys: [right]}
+        N-->>H: ok
+        H->>N: pane.send_input {pane_id, text: empty, keys: [submit chord]}
+        N-->>H: ok
+        Note over H: Commands use Enter, bound text uses captured Enter or Shift+Enter. Resolve on acknowledgement, not Agent acceptance or process exit
+    else Ordered logical keys
+        loop Each validated chord
+            H->>N: pane.send_input {pane_id, text: empty, keys: [chord]}
+            N-->>H: ok
+        end
+    else Bound screen read
+        H->>N: pane.read {pane_id, source: visible, format: text, strip_ansi: true}
+        N-->>H: pane_read with identities and visible text
+        Note over H: Recheck revocation and validate reply before returning text. No scrollback or streaming
+    end
+    Note over H,N: Await each acknowledgement, native failure stops remaining sends. Once input starts, cancellation alone lets the full sequence settle. Keep its queue slot until completion or native error, later revoked input sends nothing
+    Note over H,N: Identity checks and mutations are not atomic. A restart reusing every checked identity can go undetected
+```
 
-Herdr's targeted `tab.close` closes the workspace when the tab is its last one.
-The plugin lists the captured workspace's tabs before closing and refuses that
-case. This is a preflight guard, not an atomic backend transaction.
+### Close an owned tab or confirm absence
 
-For an owned tab whose lookup reports `tab_not_found`, that error only starts an
-absence check. The captured Runner pane must still resolve to its original
-workspace, tab, pane and terminal IDs. A complete, validated tab list for that
-workspace must contain the Runner tab and omit the owned tab. Lists with
-duplicates, malformed entries, foreign workspaces, contradictory presence or
-unresolved Runner context reject. Generic not-found errors and other backend or
-transport failures are not evidence of absence, including errors from
-`tab.close` itself. A successful targeted close or confirmed absence retires
-the handle: later close is a local success and later input rejects.
+```mermaid
+%%{init: {"sequence": {"width": 250, "wrap": true}}}%%
+sequenceDiagram
+    participant H as Herdr (the plugin)
+    participant N as Native Herdr
+    Note over H: Explicit close remains usable after revocation. Unknown handles reject, already closed handles succeed locally
+    H->>N: tab.get {tab_id: owned tab}
+    alt Owned tab is present
+        N-->>H: tab_info
+        H->>N: pane.get {pane_id: owned root pane}
+        N-->>H: pane_info
+        Note over H: Validate all recorded target identities
+        H->>N: tab.list {workspace_id}
+        N-->>H: tab_list
+        Note over H: Require owned tab in a valid, unique workspace list. Refuse last-tab closure, which would close the workspace
+        alt Safe to close
+            H->>N: tab.close {tab_id: owned tab}
+            alt Close succeeds
+                N-->>H: ok
+                Note over H: Retire handle
+            else Close fails
+                N-->>H: error
+                Note over H: Reject, ordinary errors permit explicit retry on the same handle
+            end
+        else Unsafe or unresolved tab list
+            Note over H: Reject without closing
+        end
+    else Lookup reports tab_not_found
+        N-->>H: error {code: tab_not_found, message}
+        H->>N: pane.get {pane_id: captured Runner pane}
+        N-->>H: pane_info
+        Note over H: Require original Runner workspace, tab, pane and terminal
+        H->>N: tab.list {workspace_id}
+        N-->>H: tab_list
+        Note over H: Require unique valid list containing Runner and excluding owned tab. Retire handle without a close request
+    else Other lookup failure
+        N-->>H: error
+        Note over H: Reject, failure is not proof of absence
+    end
+    Note over H,N: Last-tab guard is a preflight check, not an atomic transaction. Core owns enhancement cleanup, the plugin never invokes it
+```
 
-Backend close acknowledgement does not establish process/descendant exit or
-writer settlement. The plugin does not supervise processes or monitor shutdown.
+### Settle requests and handle protocol loss
 
-## Primary sources
-
-- [Public ID alphabet and encoding](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/workspace.rs)
-- [Request framing and response parsing](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/api/client.rs)
-- [Server request limits and one-request connections](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/api/server.rs)
-- [Response envelopes](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/api/schema/response.rs)
-- [Caller-aware pane resolution](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/app/api/panes.rs)
-- [Tab creation and closure](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/app/api/tabs.rs)
-- [Managed launch environment](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/pane.rs)
-- [Socket and binary environment injection](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/integration/env.rs)
-- [Input encoding](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/app/api_helpers.rs)
-- [Logical key parsing](https://github.com/herdrdev/herdr/blob/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01/src/config/keybinds.rs)
-- [Windows socket namespace mapping](https://docs.rs/interprocess/2.4.4/interprocess/local_socket/enum.GenericNamespaced.html)
+```mermaid
+%%{init: {"sequence": {"width": 250, "wrap": true}}}%%
+sequenceDiagram
+    participant H as Herdr (the plugin)
+    participant N as Native Herdr
+    H->>N: Open local connection and send {id, method, params} plus newline
+    alt Complete correlated result of expected type
+        N-->>H: {id, result: {type, ...}} plus newline
+        Note over H: Resolve request
+    else Correlated backend rejection
+        N-->>H: {id, error: {code, message}} plus newline
+        Note over H: Reject with method, code and message. Ordinary rejection leaves other live associations usable
+    else Disconnect, malformed reply, oversized reply or five-second deadline
+        N--xH: No valid complete response
+        Note over H: Invalidate instance, reject all pending socket operations. Old handles cannot reconnect or transfer to a new instance
+    end
+    Note over H: On settlement, clear timer, destroy socket and remove pending request. Late replies cannot resume rejected input
+    Note over H,N: Lost replies can leave mutations uncertain, no rollback or automatic replay. A fresh factory needs valid inherited context, Core owns recovery
+```
