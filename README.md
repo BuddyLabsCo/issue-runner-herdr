@@ -2,7 +2,7 @@
 
 Herdr command entry and terminal adapter for [Issue Runner Core](https://github.com/BuddyLabsCo/issue-runner-core). Runner coordinates AI work on GitHub Issues; this package creates native Herdr tabs and transports commands and input.
 
-![Issue Runner demo](https://raw.githubusercontent.com/BuddyLabsCo/issue-runner-core/main/docs/assets/demo.gif)
+![Issue Runner demo](https://raw.githubusercontent.com/BuddyLabsCo/issue-runner-herdr/main/docs/assets/demo.gif)
 
 ## Prerequisites
 
