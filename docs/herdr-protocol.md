@@ -38,13 +38,13 @@ sequenceDiagram
     N-->>H: workspace_info
     Note over H: Validate workspace, initialization creates no resources
     Note over H: Validate and capture cwd, label, env and submitKey
-    Note over H: cwd must be an existing absolute host directory<br/>POSIX path, Windows drive path or UNC path
-    Note over H: Exclude inherited routing keys, reject explicit routing overrides<br/>Preserve literal values, Windows env names are case-insensitive
+    Note over H: cwd must be an existing absolute host directory: POSIX path, Windows drive path or UNC path
+    Note over H: Exclude inherited routing keys, reject explicit routing overrides. Preserve literal values, Windows env names are case-insensitive
     H->>N: tab.create {workspace_id, cwd, label, env, focus: false}
     Note over N: Inject managed routing context for the new pane
     N-->>H: tab_created {tab, root_pane}
-    Note over H: Validate unique tab, root pane and terminal identities<br/>Return an owned handle and bound I/O, launch no command
-    Note over H,N: A rejected or lost creation reply can leave a native tab<br/>Never guess its identity or replay creation
+    Note over H: Validate unique tab, root pane and terminal identities. Return an owned handle and bound I/O, launch no command
+    Note over H,N: A rejected or lost creation reply can leave a native tab. Never guess its identity or replay creation
 ```
 
 ### Validate targets, submit input and read output
@@ -54,13 +54,13 @@ sequenceDiagram
 sequenceDiagram
     participant H as Herdr (the plugin)
     participant N as Native Herdr
-    Note over H: Commands, text and keys enter one queue per tab<br/>Reads bypass the queue, other tabs remain independent
-    Note over H: Reject foreign, closed, invalid or revoked handles<br/>Validate all logical keys before native queries
+    Note over H: Commands, text and keys enter one queue per tab. Reads bypass the queue, other tabs remain independent
+    Note over H: Reject foreign, closed, invalid or revoked handles. Validate all logical keys before native queries
     H->>N: tab.get {tab_id: owned tab}
     N-->>H: tab_info
     H->>N: pane.get {pane_id: owned root pane}
     N-->>H: pane_info
-    Note over H: Require recorded workspace, tab, pane and terminal identities<br/>Changed targets invalidate the handle, never adopt a replacement
+    Note over H: Require recorded workspace, tab, pane and terminal identities. Changed targets invalidate the handle, never adopt a replacement
     alt Revoked before first input send, including during target checks
         Note over H: Reject without sending input, retain tab for manual takeover
     else Command or bound text submission
@@ -70,7 +70,7 @@ sequenceDiagram
         N-->>H: ok
         H->>N: pane.send_input {pane_id, text: empty, keys: [submit chord]}
         N-->>H: ok
-        Note over H: Commands use Enter, bound text uses captured Enter or Shift+Enter<br/>Resolve on acknowledgement, not Agent acceptance or process exit
+        Note over H: Commands use Enter, bound text uses captured Enter or Shift+Enter. Resolve on acknowledgement, not Agent acceptance or process exit
     else Ordered logical keys
         loop Each validated chord
             H->>N: pane.send_input {pane_id, text: empty, keys: [chord]}
@@ -79,10 +79,10 @@ sequenceDiagram
     else Bound screen read
         H->>N: pane.read {pane_id, source: visible, format: text, strip_ansi: true}
         N-->>H: pane_read with identities and visible text
-        Note over H: Recheck revocation and validate reply before returning text<br/>No scrollback or streaming
+        Note over H: Recheck revocation and validate reply before returning text. No scrollback or streaming
     end
-    Note over H,N: Await each acknowledgement, native failure stops remaining sends<br/>Once input starts, cancellation alone lets the full sequence settle<br/>Keep its queue slot until completion or native error, later revoked input sends nothing
-    Note over H,N: Identity checks and mutations are not atomic<br/>A restart reusing every checked identity can go undetected
+    Note over H,N: Await each acknowledgement, native failure stops remaining sends. Once input starts, cancellation alone lets the full sequence settle. Keep its queue slot until completion or native error, later revoked input sends nothing
+    Note over H,N: Identity checks and mutations are not atomic. A restart reusing every checked identity can go undetected
 ```
 
 ### Close an owned tab or confirm absence
@@ -92,7 +92,7 @@ sequenceDiagram
 sequenceDiagram
     participant H as Herdr (the plugin)
     participant N as Native Herdr
-    Note over H: Explicit close remains usable after revocation<br/>Unknown handles reject, already closed handles succeed locally
+    Note over H: Explicit close remains usable after revocation. Unknown handles reject, already closed handles succeed locally
     H->>N: tab.get {tab_id: owned tab}
     alt Owned tab is present
         N-->>H: tab_info
@@ -101,7 +101,7 @@ sequenceDiagram
         Note over H: Validate all recorded target identities
         H->>N: tab.list {workspace_id}
         N-->>H: tab_list
-        Note over H: Require owned tab in a valid, unique workspace list<br/>Refuse last-tab closure, which would close the workspace
+        Note over H: Require owned tab in a valid, unique workspace list. Refuse last-tab closure, which would close the workspace
         alt Safe to close
             H->>N: tab.close {tab_id: owned tab}
             alt Close succeeds
@@ -121,12 +121,12 @@ sequenceDiagram
         Note over H: Require original Runner workspace, tab, pane and terminal
         H->>N: tab.list {workspace_id}
         N-->>H: tab_list
-        Note over H: Require unique valid list containing Runner and excluding owned tab<br/>Retire handle without a close request
+        Note over H: Require unique valid list containing Runner and excluding owned tab. Retire handle without a close request
     else Other lookup failure
         N-->>H: error
         Note over H: Reject, failure is not proof of absence
     end
-    Note over H,N: Last-tab guard is a preflight check, not an atomic transaction<br/>Core owns enhancement cleanup, the plugin never invokes it
+    Note over H,N: Last-tab guard is a preflight check, not an atomic transaction. Core owns enhancement cleanup, the plugin never invokes it
 ```
 
 ### Settle requests and handle protocol loss
@@ -142,11 +142,11 @@ sequenceDiagram
         Note over H: Resolve request
     else Correlated backend rejection
         N-->>H: {id, error: {code, message}} plus newline
-        Note over H: Reject with method, code and message<br/>Ordinary rejection leaves other live associations usable
+        Note over H: Reject with method, code and message. Ordinary rejection leaves other live associations usable
     else Disconnect, malformed reply, oversized reply or five-second deadline
         N--xH: No valid complete response
-        Note over H: Invalidate instance, reject all pending socket operations<br/>Old handles cannot reconnect or transfer to a new instance
+        Note over H: Invalidate instance, reject all pending socket operations. Old handles cannot reconnect or transfer to a new instance
     end
-    Note over H: On settlement, clear timer, destroy socket and remove pending request<br/>Late replies cannot resume rejected input
-    Note over H,N: Lost replies can leave mutations uncertain, no rollback or automatic replay<br/>A fresh factory needs valid inherited context, Core owns recovery
+    Note over H: On settlement, clear timer, destroy socket and remove pending request. Late replies cannot resume rejected input
+    Note over H,N: Lost replies can leave mutations uncertain, no rollback or automatic replay. A fresh factory needs valid inherited context, Core owns recovery
 ```
