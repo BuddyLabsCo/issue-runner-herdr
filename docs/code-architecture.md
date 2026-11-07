@@ -28,20 +28,6 @@ This map assigns code and tests to their owners. Interface behavior lives in the
 `-- dist/                      # Generated JavaScript and public declarations
 ```
 
-## Dependency direction
-
-```mermaid
-flowchart TD
-    CLI["src/cli.ts: terminal command"] --> Core["issue-runner-core/cli: runCli"]
-    CLI --> Public["src/index.ts: lazy terminal module"]
-    Public --> Plugin["plugin/: configuration, ownership and queues"]
-    Plugin --> Native["herdr/: native context, targets, keys and transport"]
-    Native --> Server["Native Herdr local protocol"]
-    Core -. "Invokes terminal contract" .-> Public
-```
-
-Imports flow from the public terminal entry through `plugin/` to `herdr/`. Core supplies public types through `issue-runner-core/terminal`. Native code never imports the plugin layer, and runtime code never imports test fixtures or Core internals.
-
 ## Module ownership
 
 | Owner | Responsibility |
@@ -56,24 +42,3 @@ Imports flow from the public terminal entry through `plugin/` to `herdr/`. Core 
 | Core | Own CLI policy, workflows, enhancement discovery/lifecycle, preflight, monitoring, startup delays, readiness, session identity, Assignment notification, retries, handoff acceptance and recovery. |
 
 Explicit closure remains available after revocation and targets only the owned native tab. It never invokes enhancement cleanup. Protocol loss invalidates the instance; target identity changes invalidate the handle. Native identity validation and mutation are separate requests, so the adapter cannot guarantee identity continuity across every server restart.
-
-## Code placement rules
-
-- Keep public exports and assembly in `src/index.ts`; keep the executable's Core integration in `src/cli.ts`.
-- Put handle ownership, bound capabilities, input ordering and revocation in `plugin/`. Keep native identifiers private.
-- Put native protocol, socket limits, key encoding, target validation and platform differences in `herdr/`. Native filesystem and transport access belong here.
-- Leave shared workflow and Agent policy in Core. Herdr neither imports enhancements nor interprets `terminalPlugins.agentStartDelay` or `terminalPlugins.enhancements`.
-- Keep helpers beside their owner. Add directories when needed, not as empty scaffolding.
-- Keep release automation outside the runtime package. Reuse supplied-candidate checks and release service substitutes.
-
-## Test placement rules
-
-| Location | Coverage and boundary |
-| --- | --- |
-| `tests/unit/` | Logical chord mapping/rejection and executable lint rules for architecture boundaries. |
-| `tests/integration/` | Real public factory, tab operations and bound I/O through `tests/fixtures/herdr.ts`. Cover host context, ownership, literal text, ordering, revocation, failures, closure and finite timeouts. Gate scripted replies to test races without exposing runtime seams. |
-| `tests/fixtures/herdr.ts` | Private local-socket protocol substitute. Exercise actual JSON-line transport and script native results, identities, delays and failures; keep this seam out of public exports. |
-| `tests/package/` and `tests/fixtures/package.ts` | Build or accept an unchanged candidate, install with its exact npm Core dependency, and verify public exports/declarations, inert imports and CLI identity in a relocated global prefix. |
-| `tests/release/` | Exercise release entry points with disposable real Git repositories and substituted GitHub/npm services. These checks do not establish live publication. |
-
-Protocol substitutes do not prove actual PTY delivery, Agent acceptance or complete workflow success.
