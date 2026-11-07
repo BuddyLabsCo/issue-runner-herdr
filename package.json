@@ -16,8 +16,8 @@
     "dist/index.d.ts"
   ],
   "engines": {
-    "node": ">=22.18.0 <23",
-    "npm": ">=11 <12"
+    "node": ">=22.18.0",
+    "npm": ">=11"
   },
   "packageManager": "npm@11.6.2",
   "scripts": {
