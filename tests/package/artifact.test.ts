@@ -84,7 +84,7 @@ assert.equal(import.meta.resolve("issue-runner-herdr"), ${JSON.stringify(pathToF
 assert.deepEqual(Object.keys(plugin).sort(), ["contractVersion", "createTerminalPlugin"]);
 assert.equal(plugin.contractVersion, 2);
 assert.equal(terminalContractVersion, 2);
-assert.equal(enhancementContractVersion, 2);
+assert.equal(enhancementContractVersion, 3);
 assert.equal(plugin.createTerminalPlugin.length, 0);
 for (const entry of ["src/index.ts", "dist/index.js", "dist/herdr/client.js", "terminal/testing"]) {
   await assert.rejects(import("issue-runner-herdr/" + entry), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });
