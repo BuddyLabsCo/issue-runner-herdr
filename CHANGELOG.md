@@ -2,11 +2,14 @@
 
 ## 1.0.6
 
+- - fix: [issue-105] restore Core 1.0.7 lockfile integrity (#106)
+- - chore: propose release v1.0.6 (#104)
 - - chore: [issue-102] upgrade Core dependency to 1.0.7 (#103)
 
 ## 1.0.5
 
 - - chore: [issue-99] upgrade Core dependency to 1.0.6 (#100)
+
 
 
 ## 1.0.4
@@ -15,9 +18,11 @@
 
 
 
+
 ## 1.0.3
 
 - - chore: [issue-93] upgrade Core dependency to 1.0.4 (#94)
+
 
 
 
@@ -30,9 +35,11 @@
 
 
 
+
 ## 1.0.1
 
 - - chore: [issue-87] upgrade Core dependency to 1.0.2 (#88)
+
 
 
 
@@ -51,6 +58,7 @@
 
 
 
+
 ## 0.1.2
 
 - - chore: [issue-75] upgrade Core dependency to 0.1.3 (#76)
@@ -62,9 +70,11 @@
 
 
 
+
 ## 0.1.1
 
 - - chore: [issue-55] upgrade Core to 0.1.1 and remove legacy archive (#56)
+
 
 
 
