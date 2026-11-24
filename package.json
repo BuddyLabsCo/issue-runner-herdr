@@ -44,7 +44,7 @@
     "issue-runner-herdr": "./dist/cli.js"
   },
   "dependencies": {
-    "issue-runner-core": "1.0.10"
+    "issue-runner-core": "1.0.11"
   },
   "keywords": [
     "issue-runner",
