@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8
+
+- chore: [issue-114] upgrade Core dependency to 1.0.10 (#115)
+- fix: [issue-111] prevent changelog blank-line accumulation (#112)
+
 ## 1.0.7
 
 - - chore: [issue-108] upgrade Core dependency to 1.0.8 (#109)
@@ -10,51 +15,25 @@
 - - chore: propose release v1.0.6 (#104)
 - - chore: [issue-102] upgrade Core dependency to 1.0.7 (#103)
 
-
 ## 1.0.5
 
 - - chore: [issue-99] upgrade Core dependency to 1.0.6 (#100)
-
-
-
 
 ## 1.0.4
 
 - - chore: [issue-96] upgrade Core dependency to 1.0.5 (#97)
 
-
-
-
-
 ## 1.0.3
 
 - - chore: [issue-93] upgrade Core dependency to 1.0.4 (#94)
-
-
-
-
-
 
 ## 1.0.2
 
 - - chore: [issue-90] upgrade Core dependency to 1.0.3 (#91)
 
-
-
-
-
-
-
 ## 1.0.1
 
 - - chore: [issue-87] upgrade Core dependency to 1.0.2 (#88)
-
-
-
-
-
-
-
 
 ## 1.0.0
 
@@ -62,40 +41,13 @@
 - - docs: [issue-48] consolidate Herdr documentation (#81)
 - - chore: [issue-82] align engine requirements with Core (#83)
 
-
-
-
-
-
-
-
-
 ## 0.1.2
 
 - - chore: [issue-75] upgrade Core dependency to 0.1.3 (#76)
 
-
-
-
-
-
-
-
-
-
 ## 0.1.1
 
 - - chore: [issue-55] upgrade Core to 0.1.1 and remove legacy archive (#56)
-
-
-
-
-
-
-
-
-
-
 
 ## 0.1.0
 
