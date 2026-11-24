@@ -38,7 +38,7 @@ const initialized: Promise<TerminalPlugin> = contract.createTerminalPlugin(args[
 const terminal = await initialized;
 const { handle, io } = await terminal.createTab({ cwd: "/unused", env: {}, label: "Types only", submitKey: "Shift+Enter" });
 const bound: TerminalIO = io;
-const executed: void = await terminal.execute(handle, "opaque command");
+const executed: string | void = await terminal.execute(handle, "opaque command");
 const screen: string = await bound.read();
 await bound.submitText(screen);
 await bound.sendKeys(["Escape", "Shift+Enter"]);
