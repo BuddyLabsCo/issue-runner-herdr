@@ -114,7 +114,7 @@ export async function verifyCommand(
   await writeFile(configPath, configured);
   await assert.rejects(run(["run", "--project", "sample", "--issue", "1"]), {
     code: 1,
-    stdout: /GH_TOKEN/,
+    stdout: /HERDR_SOCKET_PATH/,
   });
   await assert.rejects(
     run(["run", "--project", "sample", "--issue"], {
@@ -131,7 +131,7 @@ export async function verifyCommand(
   await writeFile(configPath, "invalid: config\n");
   await assert.rejects(run(["run", "--project", "sample", "--issue", "1"]), {
     code: 1,
-    stdout: /config contains unknown field/,
+    stdout: /tracker must be an object/,
   });
   assert.deepEqual(
     (await readdir(project)).sort(),
