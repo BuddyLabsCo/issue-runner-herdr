@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.9
+
+- chore: [issue-116] upgrade Core dependency to 1.0.11 (#117)
+
 ## 1.0.8
 
 - chore: [issue-114] upgrade Core dependency to 1.0.10 (#115)
